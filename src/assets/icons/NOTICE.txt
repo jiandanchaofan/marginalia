@@ -1,0 +1,5 @@
+file-pdf.svg
+  Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com
+  Icons: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+  Copyright 2024 Fonticons, Inc.
+  Used for the PDF badge on document covers. The original attribution comment is kept inside the SVG file.

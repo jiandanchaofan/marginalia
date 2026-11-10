@@ -1,0 +1,111 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Marginalia",
+  "version": "0.1.5",
+  "identifier": "com.shengmin.reader",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "墨边 · Marginalia",
+        "width": 1360,
+        "height": 880,
+        "minWidth": 380,
+        "minHeight": 500,
+        "center": true,
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "resources": {
+      "../promo/海报/*.png": "海报/"
+    },
+    "targets": "all",
+    "publisher": "Marginalia",
+    "shortDescription": "沉浸式阅读与批注",
+    "longDescription": "本地沉浸式阅读器，支持 EPUB、PDF、Markdown、TXT、HTML，两侧边注与多彩标注。",
+    "category": "Productivity",
+    "fileAssociations": [
+      {
+        "ext": [
+          "epub"
+        ],
+        "name": "EPUB 电子书",
+        "description": "EPUB 电子书",
+        "role": "Viewer",
+        "mimeType": "application/epub+zip"
+      },
+      {
+        "ext": [
+          "pdf"
+        ],
+        "name": "PDF 文档",
+        "description": "PDF 文档",
+        "role": "Viewer",
+        "mimeType": "application/pdf"
+      },
+      {
+        "ext": [
+          "md",
+          "markdown"
+        ],
+        "name": "Markdown 文档",
+        "description": "Markdown 文档",
+        "role": "Viewer",
+        "mimeType": "text/markdown"
+      },
+      {
+        "ext": [
+          "txt"
+        ],
+        "name": "文本文档",
+        "description": "文本文档",
+        "role": "Viewer",
+        "mimeType": "text/plain"
+      }
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "SimpChinese",
+          "English"
+        ],
+        "displayLanguageSelector": false
+      },
+      "wix": {
+        "language": "zh-CN"
+      }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "marginalia"
+        ]
+      }
+    }
+  }
+}
