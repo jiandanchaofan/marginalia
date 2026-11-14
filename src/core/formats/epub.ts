@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import type { LoadedDoc, TocItem } from "../types";
 import { flowDoc, sanitize, type FlowSection } from "./flow";
+import { t } from "../../i18n";
 
 const DC = "http://purl.org/dc/elements/1.1/";
 
@@ -38,17 +39,17 @@ export async function loadEpub(bytes: Uint8Array): Promise<LoadedDoc> {
   const zip = await JSZip.loadAsync(bytes);
   const read = (path: string) => {
     const f = zip.file(path) ?? zip.file(new RegExp(`^${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"))[0];
-    if (!f) throw new Error(`EPUB 内缺少文件：${path}`);
+    if (!f) throw new Error(t("err.epubMissing", { path }));
     return f;
   };
 
   const container = parseXml(await read("META-INF/container.xml").async("string"), "application/xml");
   const opfPath = byTag(container, "rootfile")[0]?.getAttribute("full-path");
-  if (!opfPath) throw new Error("无效的 EPUB：找不到 OPF");
+  if (!opfPath) throw new Error(t("err.epubInvalid"));
   const opfDir = dirOf(opfPath);
   const opf = parseXml(await read(opfPath).async("string"), "application/xml");
 
-  const title = opf.getElementsByTagNameNS(DC, "title")[0]?.textContent?.trim() || "未命名";
+  const title = opf.getElementsByTagNameNS(DC, "title")[0]?.textContent?.trim() || t("err.untitled");
   const author = Array.from(opf.getElementsByTagNameNS(DC, "creator"))
     .map((c) => c.textContent?.trim())
     .filter(Boolean)
@@ -82,6 +83,11 @@ export async function loadEpub(bytes: Uint8Array): Promise<LoadedDoc> {
 
   const sections: FlowSection[] = spine.map((item) => ({
     href: item.href,
+    async lightRender() {
+      const doc = parseXml(await read(item.href).async("string"));
+      const body = doc.body ?? doc.getElementsByTagName("body")[0];
+      return sanitize(body ? body.innerHTML : "");
+    },
     async render() {
       const doc = parseXml(await read(item.href).async("string"));
       const body = doc.body ?? doc.getElementsByTagName("body")[0];

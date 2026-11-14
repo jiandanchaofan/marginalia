@@ -4,6 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import { isTauri } from "../platform";
+import { t } from "../i18n";
 
 export const MAX_IMAGES = 9;
 const MAX_SIDE = 2000;
@@ -51,7 +52,7 @@ const cache = new Map<string, Promise<string>>();
 
 /** Store a picture and return its id. */
 export async function putImage(file: Blob): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("不是图片文件");
+  if (!file.type.startsWith("image/")) throw new Error(t("err.notImage"));
   const { blob, ext } = await shrink(file);
   const url = await readAsDataUrl(blob);
   let id: string;
@@ -63,7 +64,7 @@ export async function putImage(file: Blob): Promise<string> {
     try {
       localStorage.setItem(LS + id, url);
     } catch {
-      throw new Error("浏览器存储空间不足");
+      throw new Error(t("err.storageFull"));
     }
   }
   cache.set(id, Promise.resolve(url));
@@ -78,7 +79,7 @@ export function getImage(id: string): Promise<string> {
       ? invoke<string>("image_get", { id })
       : new Promise<string>((resolve, reject) => {
           const v = localStorage.getItem(LS + id);
-          v ? resolve(v) : reject(new Error("图片不存在"));
+          v ? resolve(v) : reject(new Error(t("err.imageMissing")));
         });
     p.catch(() => cache.delete(id));
     cache.set(id, p);

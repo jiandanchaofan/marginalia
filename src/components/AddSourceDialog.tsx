@@ -4,6 +4,8 @@ import { discover, type Discovered } from "../feeds/discover";
 import { feedsApi, feedsChanged, interestCounts, type Source } from "../feeds/api";
 import { InterestPicker } from "./InterestPicker";
 import { refreshSource } from "../feeds/refresh";
+import { t } from "../i18n";
+import { localizeErr } from "../i18n/errors";
 
 type Row = { input: string; state: "pending" | "ok" | "error" | "exists"; found?: Discovered; error?: string; pick: boolean; interests: string[] };
 
@@ -61,7 +63,7 @@ export function AddSourceDialog({ existing, onClose, notify }: { existing: Sourc
       items += (await refreshSource(src, true)).added;
       feedsChanged();
     }
-    notify(`已添加 ${picked.length} 个订阅，获取到 ${items} 篇文章`);
+    notify(t("src.added", { n: picked.length, items }));
     onClose();
   };
 
@@ -69,13 +71,13 @@ export function AddSourceDialog({ existing, onClose, notify }: { existing: Sourc
   return (
     <div className="modal-backdrop" onMouseDown={() => !busy && onClose()}>
       <div className="modal add-source" onMouseDown={(e) => e.stopPropagation()}>
-        <button className="icon-btn modal-close" onClick={onClose} title="关闭">
+        <button className="icon-btn modal-close" onClick={onClose} title={t("common.close")}>
           <X size={18} />
         </button>
         <h2>
-          <Rss size={19} /> 添加订阅
+          <Rss size={19} /> {t("src.title")}
         </h2>
-        <p className="modal-sub">每行一个网址：博客或网站首页、RSS 地址、公众号「合集」链接都可以，墨边会自动找到订阅源。</p>
+        <p className="modal-sub">{t("src.sub")}</p>
 
         {phase === "input" ? (
           <>
@@ -84,12 +86,12 @@ export function AddSourceDialog({ existing, onClose, notify }: { existing: Sourc
               autoFocus
               rows={6}
               value={text}
-              placeholder={"https://cn.9marks.org/articles\nhttps://nacr.info/WordPress/\nhttps://mp.weixin.qq.com/mp/appmsgalbum?__biz=…&album_id=…"}
+              placeholder={t("src.placeholder")}
               onChange={(e) => setText(e.target.value)}
             />
             <div className="modal-actions">
               <label className="batch-btn file-btn">
-                <FileUp size={14} /> 导入 OPML
+                <FileUp size={14} /> {t("src.opml")}
                 <input
                   type="file"
                   accept=".opml,.xml,text/xml"
@@ -98,14 +100,14 @@ export function AddSourceDialog({ existing, onClose, notify }: { existing: Sourc
                     const f = e.target.files?.[0];
                     if (!f) return;
                     const urls = opmlUrls(await f.text());
-                    if (!urls.length) return notify("这个文件里没有找到订阅源");
+                    if (!urls.length) return notify(t("src.opmlEmpty"));
                     setText((t) => [t.trim(), ...urls].filter(Boolean).join("\n"));
                   }}
                 />
               </label>
               <span className="nb-spacer" />
               <button className="primary-btn" disabled={!text.trim()} onClick={() => detect(text.split(/\n+/))}>
-                检测订阅源
+                {t("src.detect")}
               </button>
             </div>
           </>
@@ -124,10 +126,10 @@ export function AddSourceDialog({ existing, onClose, notify }: { existing: Sourc
                     <div className="sr-title">
                       {r.state === "pending" && <Loader2 size={13} className="spin" />}
                       {r.found ? r.found.title : r.input}
-                      {r.state === "ok" && <em>{r.found!.kind === "wechat-album" ? "公众号合集" : "RSS"} · {r.found!.count} 篇</em>}
-                      {r.state === "exists" && <em>已订阅</em>}
+                      {r.state === "ok" && <em>{r.found!.kind === "wechat-album" ? t("src.album") : "RSS"} · {t("src.count", { n: r.found!.count })}</em>}
+                      {r.state === "exists" && <em>{t("src.exists")}</em>}
                     </div>
-                    {r.state === "error" && <div className="sr-error">{r.error}</div>}
+                    {r.state === "error" && <div className="sr-error">{localizeErr(r.error ?? "")}</div>}
                     {r.found && (
                       <ul className="sr-latest">
                         {r.found.latest.map((l, i) => (
@@ -140,7 +142,7 @@ export function AddSourceDialog({ existing, onClose, notify }: { existing: Sourc
                     )}
                     {r.state === "ok" && (
                       <div className="sr-interests">
-                        <span>阅读兴趣</span>
+                        <span>{t("src.interest")}</span>
                         <InterestPicker
                           value={r.interests}
                           all={[...new Set([...knownInterests, ...rows.flatMap((x) => x.interests)])]}
@@ -155,12 +157,12 @@ export function AddSourceDialog({ existing, onClose, notify }: { existing: Sourc
             </div>
             <div className="modal-actions">
               <button className="batch-btn" disabled={busy} onClick={() => setPhase("input")}>
-                返回修改
+                {t("src.back")}
               </button>
               <span className="nb-spacer" />
               <button className="primary-btn" disabled={busy || !rows.some((r) => r.pick)} onClick={add}>
                 {phase === "adding" ? <Loader2 size={16} className="spin" /> : <Check size={16} />}
-                {phase === "adding" ? "正在获取文章…" : `添加 ${rows.filter((r) => r.pick).length} 个订阅`}
+                {phase === "adding" ? t("src.adding") : t("src.addN", { n: rows.filter((r) => r.pick).length })}
               </button>
             </div>
           </>

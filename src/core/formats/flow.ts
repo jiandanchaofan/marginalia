@@ -1,5 +1,6 @@
 import DOMPurify from "dompurify";
 import type { BookFormat, LoadedDoc, MountOptions, TocItem } from "../types";
+import { t } from "../../i18n";
 
 /** Sanitize untrusted book/web HTML into a fragment. Book stylesheets are dropped on purpose: the reader owns typography. */
 export function sanitize(html: string): DocumentFragment {
@@ -16,6 +17,8 @@ export interface FlowSection {
   render(): Promise<DocumentFragment>;
   /** Path/key used to resolve internal links to this section (EPUB). */
   href?: string;
+  /** A cheaper `render` for reading the text only (no pictures). */
+  lightRender?(): Promise<DocumentFragment>;
 }
 
 export interface FlowSpec {
@@ -74,11 +77,25 @@ export function flowDoc(spec: FlowSpec): LoadedDoc {
         try {
           roots[i].appendChild(await spec.sections[i].render());
         } catch (err) {
-          roots[i].innerHTML = `<p class="doc-error">本章节无法解析：${String(err)}</p>`;
+          roots[i].innerHTML = `<p class="doc-error">${t("err.chapterBroken", { err: String(err) })}</p>`;
         }
         opts.onSectionReady(i);
         if (i % 4 === 3) await new Promise((r) => setTimeout(r, 0));
       }
+    },
+
+    async extractText() {
+      const out: string[][] = [];
+      for (let i = 0; i < spec.sections.length; i++) {
+        const s = spec.sections[i];
+        try {
+          out.push(blocksOf(await (s.lightRender ?? s.render)()));
+        } catch {
+          out.push([]);
+        }
+        if (i % 4 === 3) await new Promise((r) => setTimeout(r, 0));
+      }
+      return out;
     },
 
     sectionRoot: (i) => roots[i] ?? null,
@@ -101,6 +118,23 @@ export function flowDoc(spec: FlowSpec): LoadedDoc {
       spec.cleanup?.();
     },
   };
+}
+
+const BLOCKS = "p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, td, th, dt, dd, figcaption, div";
+
+/** The paragraphs of a fragment: the text of every block that holds no other block (the masthead of a clipping is skipped). */
+export function blocksOf(frag: DocumentFragment): string[] {
+  const out: string[] = [];
+  frag.querySelectorAll(BLOCKS).forEach((el) => {
+    if (el.closest("[data-anchor-ignore]") || el.querySelector(BLOCKS)) return;
+    const s = el.textContent ?? "";
+    if (s.trim()) out.push(s);
+  });
+  if (!out.length) {
+    const s = frag.textContent ?? "";
+    if (s.trim()) out.push(s);
+  }
+  return out;
 }
 
 /** Collect h1–h3 into a flat TOC for single-section documents, assigning ids as needed. */

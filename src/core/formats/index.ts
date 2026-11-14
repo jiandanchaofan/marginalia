@@ -1,4 +1,5 @@
 import type { BookFormat, LoadedDoc } from "../types";
+import { t } from "../../i18n";
 
 export const formatOf = (ext: string): BookFormat | null => {
   switch (ext.toLowerCase()) {
@@ -35,6 +36,6 @@ export async function loadDocument(bytes: Uint8Array, ext: string, fileName: str
     case "html":
       return (await import("./text")).loadHtml(bytes, fileName);
     default:
-      throw new Error(`暂不支持的格式：.${ext}`);
+      throw new Error(t("err.unsupportedExt", { ext }));
   }
 }

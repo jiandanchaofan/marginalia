@@ -2,6 +2,7 @@ import { Readability } from "@mozilla/readability";
 import { sanitize } from "../core/formats/flow";
 import { articleLookup, fetchImage, fetchPage, saveArticle, type SavedArticle } from "../platform";
 import { noReferer, prepareDocument, type SiteMeta } from "./adapters";
+import { t } from "../i18n";
 
 export type ClipStage = "check" | "fetch" | "extract" | "images" | "save";
 export interface ClipProgress {
@@ -65,7 +66,7 @@ export function extractReadable(page: { finalUrl: string; html: string }, hints:
   const docTitle = doc.title;
   const article = new Readability(doc, { charThreshold: 200, keepClasses: false }).parse();
   if (!article?.content || (article.textContent ?? "").trim().length < 60) {
-    throw new Error("没能识别出这个页面的正文。它可能是列表页、需要登录，或主要内容由脚本加载。");
+    throw new Error(t("err.noContent"));
   }
   const holder = document.createElement("div");
   holder.appendChild(sanitize(article.content));

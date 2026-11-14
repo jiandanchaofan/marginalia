@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, CheckSquare, Compass, FilePlus2, Layers, LayoutGrid, List, Pencil, Search, Settings as SettingsIcon, Square, StickyNote, Tags, Trash2, X } from "lucide-react";
+import { BookOpen, CheckSquare, Compass, FilePlus2, Layers, LayoutGrid, List, Pencil, Search, Settings as SettingsIcon, Square, StickyNote, Tags, Trash2, X, ListChecks } from "lucide-react";
 import { STATUS_LABEL, readStatus, type BookRecord, type ReadStatus } from "../core/types";
 import type { Theme } from "../settings";
 import type { NoteHit } from "../notes/store";
+import { Tasks } from "./Tasks";
+import { useTasks } from "../tasks/useTasks";
+import { TextHits, type TextTarget } from "../search/TextHits";
+import { dueCount } from "../tasks/query";
 import { NotesHub, kindOf } from "./NotesHub";
 import { Inbox } from "./Inbox";
 import { feedsApi, interestCounts, useFeedsVersion, type FeedItem } from "../feeds/api";
@@ -11,6 +15,9 @@ import { InterestDialog } from "./InterestDialog";
 import { BookInfoDialog } from "./BookInfoDialog";
 import { BatchTagDialog } from "./BatchTagDialog";
 import { DOC_TYPES, DocTypeBadge, docType } from "./DocTypeBadge";
+import { fmtDate, t } from "../i18n";
+import { ReadingHeat } from "../reading/ReadingHeat";
+import { AppLogo } from "./AppLogo";
 
 /** Pseudo-interest used by the 未分类 chip. */
 const NONE = "\u0000none";
@@ -25,21 +32,21 @@ const loadMode = (): ShelfMode => {
   }
 };
 
-const FORMAT_LABEL: Record<string, string> = { epub: "EPUB", pdf: "PDF", txt: "TXT", md: "Markdown", html: "网页" };
+const FORMAT_LABEL: Record<string, string> = { epub: "EPUB", pdf: "PDF", txt: "TXT", md: "Markdown", html: "Web" };
 
-const ago = (t: number) => {
-  const d = (Date.now() - t) / 1000;
-  if (d < 60) return "刚刚";
-  if (d < 3600) return `${Math.floor(d / 60)} 分钟前`;
-  if (d < 86400) return `${Math.floor(d / 3600)} 小时前`;
-  if (d < 86400 * 30) return `${Math.floor(d / 86400)} 天前`;
-  return new Date(t).toLocaleDateString();
+const ago = (ts: number) => {
+  const d = (Date.now() - ts) / 1000;
+  if (d < 60) return t("time.justNow");
+  if (d < 3600) return t("time.minAgo", { n: Math.floor(d / 60) });
+  if (d < 86400) return t("time.hourAgo", { n: Math.floor(d / 3600) });
+  if (d < 86400 * 30) return t("time.dayAgo", { n: Math.floor(d / 86400) });
+  return fmtDate(ts);
 };
 
 /** Five-star mark: filled for the rating, faint for the rest. */
 function Stars({ n }: { n: number }) {
   return (
-    <span className="mini-stars" title={`${n} 星`}>
+    <span className="mini-stars" title={t("unit.stars", { n })}>
       {"★".repeat(n)}
       <i>{"★".repeat(5 - n)}</i>
     </span>
@@ -51,8 +58,8 @@ interface Props {
   counts: Record<string, number>;
   /** Books that have whole-document notes, with how many. */
   docCounts: Record<string, number>;
-  view: "shelf" | "feeds" | "notes";
-  onView(v: "shelf" | "feeds" | "notes"): void;
+  view: "shelf" | "feeds" | "notes" | "tasks";
+  onView(v: "shelf" | "feeds" | "notes" | "tasks"): void;
   unread: number;
   feedProgress: { done: number; total: number } | null;
   lastFeedRefresh: number | null;
@@ -60,12 +67,17 @@ interface Props {
   onSaveFeedItem(item: FeedItem, sourceTitle?: string, interests?: string[]): Promise<string | null>;
   onUpdateBook(id: string, patch: Partial<BookRecord>): void;
   onOpenBookId(id: string): void;
+  /** Open a book at a passage found in its text. */
+  onOpenBookAt(id: string, target: TextTarget): void;
+  bookSearch?: boolean;
   onOpenNote(hit: NoteHit): void;
   notify(msg: string): void;
   onClip(): void;
   onSettings(): void;
   theme: Theme;
   busy: boolean;
+  /** 0–100 while a big file is being copied into the library. */
+  importPct?: number | null;
   onImport(): void;
   onOpen(b: BookRecord): void;
   onRemove(b: BookRecord): void;
@@ -73,6 +85,8 @@ interface Props {
 
 export function Library(props: Props) {
   const { books, counts, docCounts, view, onView, onOpenNote, notify, onClip, theme, busy, onImport, onOpen, onRemove } = props;
+  const bookMap = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
+  const due = dueCount(useTasks()); // the number on the 任务 tab: today's and overdue tasks
   const [kind, setKind] = useState<"all" | "book" | "article">("all");
   const [status, setStatus] = useState<ReadStatus | "all">("all");
   const [picked, setPicked] = useState<string[]>([]); // selected interest filters (any-of; NONE = 未分类)
@@ -125,7 +139,8 @@ export function Library(props: Props) {
   }, [bookInterests]);
 
   const all = [...books].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
-  const recent = all[0];
+  // the three most recently opened books or articles, for "continue reading"
+  const recents = all.filter((b) => b.lastOpenedAt > 0).slice(0, 3);
   const matchesInterest = (b: BookRecord) =>
     !picked.length || picked.some((t) => (t === NONE ? !b.interests?.length : (b.interests ?? []).includes(t)));
   const q = query.trim().toLowerCase();
@@ -153,18 +168,18 @@ export function Library(props: Props) {
   const chosenBooks = books.filter((b) => selected.has(b.id));
   const addTags = (tags: string[]) => {
     for (const b of chosenBooks) props.onUpdateBook(b.id, { interests: [...new Set([...(b.interests ?? []), ...tags])] });
-    notify(`已给 ${chosenBooks.length} 项加上：${tags.join("、")}`);
+    notify(t("shelf.batch.added", { n: chosenBooks.length, tags: tags.join(t("shelf.sep")) }));
   };
   const removeTags = (tags: string[]) => {
     for (const b of chosenBooks) {
       const rest = (b.interests ?? []).filter((t) => !tags.includes(t));
       props.onUpdateBook(b.id, { interests: rest.length ? rest : undefined });
     }
-    notify(`已从 ${chosenBooks.length} 项去掉：${tags.join("、")}`);
+    notify(t("shelf.batch.removed", { n: chosenBooks.length, tags: tags.join(t("shelf.sep")) }));
   };
   const setStatusOf = (s: ReadStatus | undefined) => {
     for (const b of chosenBooks) props.onUpdateBook(b.id, { status: s });
-    notify(s ? `已把 ${chosenBooks.length} 项设为「${STATUS_LABEL[s]}」` : `已让 ${chosenBooks.length} 项的阅读状态恢复自动`);
+    notify(s ? t("shelf.batch.setStatus", { n: chosenBooks.length, status: STATUS_LABEL[s] }) : t("shelf.batch.autoStatus", { n: chosenBooks.length }));
   };
   const carriedTags = [...new Set(chosenBooks.flatMap((b) => b.interests ?? []))];
 
@@ -201,7 +216,7 @@ export function Library(props: Props) {
               {b.title}
             </span>
             {docCounts[b.id] > 0 && (
-              <span className="row-note-mark" title={`有 ${docCounts[b.id]} 条整体笔记`}>
+              <span className="row-note-mark" title={t("shelf.noteMark", { n: docCounts[b.id] })}>
                 <StickyNote size={12} />
               </span>
             )}
@@ -217,7 +232,7 @@ export function Library(props: Props) {
           )}
           <div className="row-line sub">
             <span className="row-sub">
-              {[b.sourceUrl ? b.siteName || label : b.author || label, noteCount(b) ? `${noteCount(b)} 条笔记` : "", ago(b.lastOpenedAt)].filter(Boolean).join(" · ")}
+              {[b.sourceUrl ? b.siteName || label : b.author || label, noteCount(b) ? t("unit.notes", { n: noteCount(b) }) : "", ago(b.lastOpenedAt)].filter(Boolean).join(" · ")}
             </span>
             <span className="row-tags">
               {tags.slice(0, 2).map((t) => (
@@ -230,7 +245,7 @@ export function Library(props: Props) {
         {b.progress > 0 && <i className="row-progress" style={{ width: `${Math.round(b.progress * 100)}%` }} />}
         <span className="row-actions">
           <button
-            title="改名与附注"
+            title={t("shelf.rename")}
             onClick={(e) => {
               e.stopPropagation();
               setRenaming(b.id);
@@ -239,7 +254,7 @@ export function Library(props: Props) {
             <Pencil size={14} />
           </button>
           <button
-            title="阅读兴趣"
+            title={t("shelf.interests")}
             onClick={(e) => {
               e.stopPropagation();
               setEditing(b.id);
@@ -248,7 +263,7 @@ export function Library(props: Props) {
             <Tags size={14} />
           </button>
           <button
-            title="从书库移除"
+            title={t("shelf.remove")}
             onClick={(e) => {
               e.stopPropagation();
               onRemove(b);
@@ -272,10 +287,10 @@ export function Library(props: Props) {
       <div key={keyPrefix + b.id} className={`book ${selecting && selected.has(b.id) ? "selected" : ""}`} onClick={(e) => (selecting ? toggleSel(b, e.shiftKey) : onOpen(b))}>
         {selecting && <span className="sel-check">{selected.has(b.id) ? <CheckSquare size={20} /> : <Square size={20} />}</span>}
         <div className={`cover ${b.sourceUrl ? "web" : ""}`} style={{ background: `linear-gradient(155deg, ${from}, ${to})` }}>
-          <span className="cover-format">{b.sourceUrl ? b.siteName || "网页" : (FORMAT_LABEL[b.format] ?? b.format)}</span>
+          <span className="cover-format">{b.sourceUrl ? b.siteName || t("doctype.web") : (FORMAT_LABEL[b.format] ?? b.format)}</span>
           <DocTypeBadge type={type} />
           {docCounts[b.id] > 0 && (
-            <span className="cover-doc" title={`有 ${docCounts[b.id]} 条整体笔记`}>
+            <span className="cover-doc" title={t("shelf.noteMark", { n: docCounts[b.id] })}>
               <StickyNote size={13} />
             </span>
           )}
@@ -289,7 +304,7 @@ export function Library(props: Props) {
           )}
           <button
             className="book-edit"
-            title="改名与附注"
+            title={t("shelf.rename")}
             onClick={(e) => {
               e.stopPropagation();
               setRenaming(b.id);
@@ -299,7 +314,7 @@ export function Library(props: Props) {
           </button>
           <button
             className="book-tag"
-            title="阅读兴趣"
+            title={t("shelf.interests")}
             onClick={(e) => {
               e.stopPropagation();
               setEditing(b.id);
@@ -309,7 +324,7 @@ export function Library(props: Props) {
           </button>
           <button
             className="book-remove"
-            title="从书库移除"
+            title={t("shelf.remove")}
             onClick={(e) => {
               e.stopPropagation();
               onRemove(b);
@@ -340,7 +355,7 @@ export function Library(props: Props) {
             </span>
           )}
           <span className="book-sub">
-            {noteCount(b) ? `${noteCount(b)} 条笔记 · ` : ""}
+            {noteCount(b) ? `${t("unit.notes", { n: noteCount(b) })} · ` : ""}
             {ago(b.lastOpenedAt)}
           </span>
         </div>
@@ -352,28 +367,31 @@ export function Library(props: Props) {
     <div className={`library theme-${theme} view-${view} ${selecting ? "shelf-selecting" : ""}`}>
       <header className="lib-header">
         <div className="brand">
-          <span className="brand-mark">墨</span>
+          <AppLogo />
           <div>
-            <div className="brand-name">墨边</div>
-            <div className="brand-sub">墨落两边，读懂字里行间</div>
+            <div className="brand-name">{t("app.name")}</div>
+            <div className="brand-sub">{t("about.slogan")}</div>
           </div>
         </div>
         <div className="segmented lib-switch">
           <button className={view === "notes" ? "on" : ""} onClick={() => onView("notes")}>
-            <StickyNote size={15} /> 笔记
+            <StickyNote size={15} /> {t("shelf.tab.notes")}
           </button>
           <button className={view === "shelf" ? "on" : ""} onClick={() => onView("shelf")}>
-            <BookOpen size={15} /> 书架
+            <BookOpen size={15} /> {t("shelf.tab.shelf")}
+          </button>
+          <button className={view === "tasks" ? "on" : ""} onClick={() => onView("tasks")}>
+            <ListChecks size={15} /> {t("shelf.tab.tasks")}{due > 0 && <span className="tab-badge">{due > 99 ? "99+" : due}</span>}
           </button>
           <button className={view === "feeds" ? "on" : ""} onClick={() => onView("feeds")}>
-            <Compass size={15} /> 探索{props.unread > 0 && <span className="tab-badge">{props.unread > 99 ? "99+" : props.unread}</span>}
+            <Compass size={15} /> {t("shelf.tab.explore")}{props.unread > 0 && <span className="tab-badge">{props.unread > 99 ? "99+" : props.unread}</span>}
           </button>
         </div>
         <div className="lib-actions">
           <button className="import-btn" onClick={onImport} disabled={busy}>
-            <FilePlus2 size={16} /> {busy ? "正在导入…" : "导入文档"}
+            <FilePlus2 size={16} /> {busy ? (props.importPct != null ? t("shelf.importingPct", { pct: props.importPct }) : t("shelf.importing")) : t("shelf.import")}
           </button>
-          <button className="icon-btn" onClick={props.onSettings} title="设置">
+          <button className="icon-btn" onClick={props.onSettings} title={t("shelf.settings")}>
             <SettingsIcon size={19} />
           </button>
         </div>
@@ -390,39 +408,48 @@ export function Library(props: Props) {
           onClip={onClip}
           notify={notify}
         />
+      ) : view === "tasks" ? (
+        <Tasks books={bookMap} notify={notify} onOpenNote={onOpenNote} />
       ) : view === "notes" ? (
         <NotesHub books={books} counts={counts} theme={theme} onOpenNote={onOpenNote} notify={notify} />
       ) : !books.length ? (
         <div className="lib-empty" onClick={onImport}>
           <BookOpen size={40} strokeWidth={1.2} />
-          <h2>把书拖到这里</h2>
-          <p>支持 EPUB、PDF、Markdown、TXT、HTML。也可以点击导入，或在系统里双击文件用「墨边」打开。</p>
+          <h2>{t("shelf.empty.title")}</h2>
+          <p>{t("shelf.empty.formats")}</p>
           <p>
-            网络文章：在「探索」页点「添加网文」，或直接在这里 <b>Ctrl + V</b> 粘贴网址。
+            {t("shelf.empty.web", { key: "Ctrl + V" })}
           </p>
         </div>
       ) : (
         <>
-          {recent && recent.progress > 0 && (
-            <button className="continue" onClick={() => onOpen(recent)}>
-              <span className="continue-label">继续阅读</span>
-              <span className="continue-title">{recent.title}</span>
-              <span className="continue-bar">
-                <i style={{ width: `${Math.round(recent.progress * 100)}%` }} />
-              </span>
-              <span className="continue-meta">
-                {Math.round(recent.progress * 100)}% · {noteCount(recent)} 条笔记 · {ago(recent.lastOpenedAt)}
-              </span>
-            </button>
+          <div className="shelf-top">
+          <ReadingHeat />
+          {recents.length > 0 && (
+            <div className="continue">
+              <span className="continue-label">{t("shelf.continue")}</span>
+              {recents.map((b) => (
+                <button key={b.id} className="continue-row" onClick={() => onOpen(b)}>
+                  <span className="continue-title">{b.title}</span>
+                  <span className="continue-bar">
+                    <i style={{ width: `${Math.round(b.progress * 100)}%` }} />
+                  </span>
+                  <span className="continue-meta">
+                    {Math.round(b.progress * 100)}% · {t("unit.notes", { n: noteCount(b) })} · {ago(b.lastOpenedAt)}
+                  </span>
+                </button>
+              ))}
+            </div>
           )}
+          </div>
           {(
             <div className="shelf-filter">
               {nArticles > 0 &&
                 (
                   [
-                    ["all", `全部 ${books.length}`],
-                    ["book", `书籍 ${books.length - nArticles}`],
-                    ["article", `文章 ${nArticles}`],
+                    ["all", t("shelf.kind.all", { n: books.length })],
+                    ["book", t("shelf.kind.book", { n: books.length - nArticles })],
+                    ["article", t("shelf.kind.article", { n: nArticles })],
                   ] as const
                 ).map(([k, label]) => (
                   <button key={k} className={`filter-chip ${kind === k ? "on" : ""}`} onClick={() => setKind(k)}>
@@ -441,62 +468,63 @@ export function Library(props: Props) {
               <span className="nb-spacer" />
               <label className="shelf-search">
                 <Search size={13} />
-                <input value={query} placeholder="搜索标题、作者、兴趣…" onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Escape" && query && (e.stopPropagation(), setQuery(""))} />
+                <input value={query} placeholder={t("shelf.search")} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Escape" && query && (e.stopPropagation(), setQuery(""))} />
                 {query && (
-                  <button onClick={() => setQuery("")} title="清空">
+                  <button onClick={() => setQuery("")} title={t("shelf.clearSearch")}>
                     <X size={12} />
                   </button>
                 )}
               </label>
-              <button className={`filter-chip ${selecting ? "on" : ""}`} onClick={() => (selecting ? exitSelecting() : setSelecting(true))} title="批量选择，一次给多本书打兴趣标签、改阅读状态">
-                <CheckSquare size={13} /> 选择
+              <button className={`filter-chip ${selecting ? "on" : ""}`} onClick={() => (selecting ? exitSelecting() : setSelecting(true))} title={t("shelf.select.tip")}>
+                <CheckSquare size={13} /> {t("shelf.select")}
               </button>
-              <div className="segmented small view-switch" role="group" aria-label="显示方式">
-                <button className={mode === "cover" ? "on" : ""} onClick={() => setMode("cover")} title="封面模式">
-                  <LayoutGrid size={13} /> 封面
+              <div className="segmented small view-switch" role="group" aria-label={t("shelf.view")}>
+                <button className={mode === "cover" ? "on" : ""} onClick={() => setMode("cover")} title={t("shelf.view.cover.tip")}>
+                  <LayoutGrid size={13} /> {t("shelf.view.cover")}
                 </button>
-                <button className={mode === "list" ? "on" : ""} onClick={() => setMode("list")} title="列表模式：分栏显示，更适合文章很多的时候">
-                  <List size={13} /> 列表
+                <button className={mode === "list" ? "on" : ""} onClick={() => setMode("list")} title={t("shelf.view.list.tip")}>
+                  <List size={13} /> {t("shelf.view.list")}
                 </button>
               </div>
             </div>
           )}
+          {props.bookSearch !== false && q.length >= 2 && <TextHits query={query} books={books} onOpen={props.onOpenBookAt} />}
           {(bookInterests.length > 0 || vocabulary.length > 0) && (
             <div className="shelf-filter shelf-interests">
-              <span className="shelf-filter-label">阅读兴趣</span>
+              <span className="shelf-filter-label">{t("shelf.interest")}</span>
               {bookInterests.map((i) => (
                 <InterestChip key={i.name} name={i.name} on={picked.includes(i.name)} onClick={() => togglePick(i.name)} />
               ))}
               {bookInterests.length > 0 && uncategorized > 0 && (
                 <button className={`filter-chip ${picked.includes(NONE) ? "on" : ""}`} onClick={() => togglePick(NONE)}>
-                  未分类 {uncategorized}
+                  {t("shelf.uncategorized", { n: uncategorized })}
                 </button>
               )}
               {picked.length > 0 && (
                 <button className="link" onClick={() => setPicked([])}>
-                  清除
+                  {t("common.clear")}
                 </button>
               )}
               <span className="nb-spacer" />
-              <button className={`filter-chip ${grouped ? "on" : ""}`} onClick={() => setGrouped((g) => !g)} title="把书架按阅读兴趣分成几组">
-                <Layers size={13} /> 按兴趣分组
+              <button className={`filter-chip ${grouped ? "on" : ""}`} onClick={() => setGrouped((g) => !g)} title={t("shelf.group.tip")}>
+                <Layers size={13} /> {t("shelf.group")}
               </button>
             </div>
           )}
           {bookInterests.length === 0 && (
             <div className="shelf-hint">
-              <Tags size={13} /> 鼠标移到封面上，点标签图标，给书和文章标注「阅读兴趣」，就能分类和筛选了。从订阅里保存的文章会自动带上订阅源的兴趣。
+              <Tags size={13} /> {t("shelf.hint")}
             </div>
           )}
-          {!sorted.length && <div className="nb-empty">没有符合条件的书或文章</div>}
+          {!sorted.length && <div className="nb-empty">{t("shelf.noMatch")}</div>}
           {groups ? (
-            groups.map(([t, list]) => (
-              <section key={t} className="shelf-group">
+            groups.map(([tag, list]) => (
+              <section key={tag} className="shelf-group">
                 <h3>
-                  {t === NONE ? "未分类" : <InterestChip name={t} />}
+                  {tag === NONE ? t("shelf.uncategorized.group") : <InterestChip name={tag} />}
                   <em>{list.length}</em>
                 </h3>
-                <div className={gridClass}>{list.map((b) => renderItem(b, `${t}:`))}</div>
+                <div className={gridClass}>{list.map((b) => renderItem(b, `${tag}:`))}</div>
               </section>
             ))
           ) : (
@@ -506,19 +534,19 @@ export function Library(props: Props) {
       )}
       {view === "shelf" && selecting && (
         <div className="shelf-batch">
-          <span className="batch-count">已选 {selected.size} 项</span>
-          <button className="batch-btn" onClick={() => setSelected(new Set(sorted.map((b) => b.id)))} disabled={!sorted.length} title="选中当前筛选和搜索出来的全部">
-            全选当前结果（{sorted.length}）
+          <span className="batch-count">{t("shelf.batch.picked", { n: selected.size })}</span>
+          <button className="batch-btn" onClick={() => setSelected(new Set(sorted.map((b) => b.id)))} disabled={!sorted.length} title={t("shelf.batch.allTip")}>
+            {t("shelf.batch.all", { n: sorted.length })}
           </button>
           <button className="batch-btn" onClick={() => setSelected(new Set())} disabled={!selected.size}>
-            清除选择
+            {t("shelf.batch.none")}
           </button>
           <span className="batch-sep" />
           <button className="batch-btn" onClick={() => setBatchDlg("add")} disabled={!selected.size}>
-            <Tags size={14} /> 加兴趣标签
+            <Tags size={14} /> {t("shelf.batch.addTags")}
           </button>
           <button className="batch-btn" onClick={() => setBatchDlg("remove")} disabled={!selected.size || !carriedTags.length}>
-            去掉标签
+            {t("shelf.batch.removeTags")}
           </button>
           <span className="batch-sep" />
           {(["want", "reading", "done"] as ReadStatus[]).map((s) => (
@@ -526,12 +554,12 @@ export function Library(props: Props) {
               {STATUS_LABEL[s]}
             </button>
           ))}
-          <button className="batch-btn" onClick={() => setStatusOf(undefined)} disabled={!selected.size} title="让阅读状态按阅读进度自动判断">
-            状态自动
+          <button className="batch-btn" onClick={() => setStatusOf(undefined)} disabled={!selected.size} title={t("shelf.batch.statusAutoTip")}>
+            {t("shelf.batch.statusAuto")}
           </button>
           <span className="nb-spacer" />
           <button className="primary-btn small" onClick={exitSelecting}>
-            完成
+            {t("common.done")}
           </button>
         </div>
       )}

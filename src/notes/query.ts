@@ -2,6 +2,8 @@ import type { BookRecord } from "../core/types";
 import { PALETTE, STYLES, styleName, swatch } from "../core/palette";
 import { tagSpans } from "./tags";
 import type { NoteHit, NoteQuery } from "./store";
+import { anyLang, collate, fmtDate, fmtDateTime, t } from "../i18n";
+import type { Key } from "../i18n/zh-Hans";
 
 export interface NotesFilter {
   q: string;
@@ -40,14 +42,17 @@ export interface ParsedSearch {
 
 const OPS: Record<string, keyof Omit<ParsedSearch, "terms" | "tags" | "thought">> = {
   "书": "books",
+  "書": "books",
   book: "books",
   "色": "colors",
   "颜色": "colors",
+  "顏色": "colors",
   color: "colors",
   "样式": "styles",
+  "樣式": "styles",
   style: "styles",
 };
-const KIND_KEYS = new Set(["类型", "type"]);
+const KIND_KEYS = new Set(["类型", "類型", "type"]);
 
 export function parseSearch(q: string): ParsedSearch {
   const out: ParsedSearch = { terms: [], tags: tagSpans(q).map((s) => s.tag), books: [], colors: [], styles: [], thought: undefined };
@@ -57,14 +62,14 @@ export function parseSearch(q: string): ParsedSearch {
     const m = /^([^:：]+)[:：](.+)$/.exec(word);
     if (m && KIND_KEYS.has(m[1].toLowerCase())) {
       const v = m[2].toLowerCase();
-      if (["整体", "整篇", "整本", "全局", "阅读全局笔记", "doc"].includes(v)) out.kind = "doc";
-      else if (["批注", "批注笔记"].includes(v)) (out.kind = "passage"), (out.thought = true);
-      else if (["原文摘录", "划线"].includes(v)) (out.kind = "passage"), (out.thought = false);
-      else if (["摘录", "passage"].includes(v)) out.kind = "passage";
-      else if (["随手记", "随手", "free", "memo"].includes(v)) out.kind = "free";
+      if (["整体", "整體", "整篇", "整本", "全局", "阅读全局笔记", "閱讀整體筆記", "doc", "whole"].includes(v)) out.kind = "doc";
+      else if (["批注", "批注笔记", "批註", "批註筆記", "annotation", "annotations"].includes(v)) (out.kind = "passage"), (out.thought = true);
+      else if (["原文摘录", "原文摘錄", "划线", "劃線", "excerpt", "excerpts"].includes(v)) (out.kind = "passage"), (out.thought = false);
+      else if (["摘录", "摘錄", "passage"].includes(v)) out.kind = "passage";
+      else if (["随手记", "隨手記", "随手", "隨手", "free", "memo", "quick"].includes(v)) out.kind = "free";
       continue;
     }
-    if (word === "整体笔记" || word === "阅读全局笔记") {
+    if (["整体笔记", "整體筆記", "阅读全局笔记", "閱讀整體筆記"].includes(word)) {
       out.kind = "doc";
       continue;
     }
@@ -72,15 +77,15 @@ export function parseSearch(q: string): ParsedSearch {
     if (field) {
       const v = m![2];
       if (field === "colors") {
-        const p = PALETTE.find((c) => c.key === v.toLowerCase() || c.name === v);
+        const p = PALETTE.find((c) => c.key === v.toLowerCase() || anyLang(`color.${c.key}` as Key, v));
         if (p) out.colors.push(p.key);
       } else if (field === "styles") {
-        const st = STYLES.find((s) => s.key === v.toLowerCase() || s.name === v);
-        out.styles.push(st ? st.key : v === "仅笔记" || v === "无" ? "none" : v);
+        const st = STYLES.find((s) => s.key === v.toLowerCase() || anyLang(`style.${s.key}` as Key, v));
+        out.styles.push(st ? st.key : anyLang("style.none", v) || v === "无" || v === "無" ? "none" : v);
       } else out.books.push(v.toLowerCase());
     } else if (word === "有想法" || word.toLowerCase() === "is:thought") out.thought = true;
-    else if (word === "批注笔记") (out.kind = "passage"), (out.thought = true);
-    else if (word === "原文摘录") (out.kind = "passage"), (out.thought = false);
+    else if (word === "批注笔记" || word === "批註筆記") (out.kind = "passage"), (out.thought = true);
+    else if (word === "原文摘录" || word === "原文摘錄") (out.kind = "passage"), (out.thought = false);
     else out.terms.push(word);
   }
   return out;
@@ -96,7 +101,7 @@ function dayRange(day?: string): { after?: number; before?: number } {
 
 export const dayLabel = (day: string) => {
   const [y, m, d] = day.split("-").map(Number);
-  return `${y === new Date().getFullYear() ? "" : `${y}年`}${m}月${d}日`;
+  return fmtDate(new Date(y, m - 1, d), { year: y === new Date().getFullYear() ? undefined : "numeric", month: "long", day: "numeric" });
 };
 
 export function toQuery(f: NotesFilter, books?: Map<string, BookRecord>): NoteQuery {
@@ -126,36 +131,38 @@ export const isFiltered = (f: NotesFilter) => !!(f.q.trim() || f.tags.length || 
 export function describeFilter(f: NotesFilter, books: Map<string, BookRecord>, sourceLabel?: string) {
   const parts: string[] = [];
   if (sourceLabel) parts.push(sourceLabel);
-  else if (f.bookIds?.length === 1) parts.push(`《${books.get(f.bookIds[0])?.title ?? "?"}》`);
+  else if (f.bookIds?.length === 1) parts.push(t("kind.bookQuote", { title: books.get(f.bookIds[0])?.title ?? "?" }));
   parts.push(...f.tags.map((t) => `#${t}`));
   if (f.colors.length) parts.push(f.colors.map((c) => swatch(c).name).join("/"));
-  if (f.kind === "passage" && f.hasText !== undefined) parts.push(f.hasText ? "批注笔记" : "原文摘录");
+  if (f.kind === "passage" && f.hasText !== undefined) parts.push(f.hasText ? t("kind.passageNote") : t("kind.excerpt"));
   else {
-    if (f.hasText) parts.push("有想法");
-    if (f.kind) parts.push(f.kind === "doc" ? "阅读全局笔记" : f.kind === "free" ? "随手记" : "原文笔记");
+    if (f.hasText) parts.push(t("kind.hasThought"));
+    if (f.kind) parts.push(f.kind === "doc" ? t("kind.doc") : f.kind === "free" ? t("kind.free") : t("kind.passage"));
   }
   if (f.day) parts.push(dayLabel(f.day));
   if (f.q.trim()) parts.push(`“${f.q.trim()}”`);
-  return parts.join(" · ") || "全部笔记";
+  return parts.join(" · ") || t("kind.all");
 }
 
 /** Markdown export, grouped by source in reading order. Tags stay inline (`#a/b`), which Obsidian reads as nested tags. */
 /** Obsidian embeds: one `![[file]]` per picture; the files go to an `attachments` folder beside the .md. */
 export const imageEmbeds = (ids?: string[]) => (ids ?? []).map((id) => `![[${id}]]`);
-export const imageIdsOf = (hits: { note: { images?: string[] } }[]) => [...new Set(hits.flatMap((h) => h.note.images ?? []))];
+export const imageIdsOf = (hits: { note: { images?: string[]; anchor?: { thumb?: string } } }[]) => [...new Set(hits.flatMap((h) => [...(h.note.images ?? []), ...(h.note.anchor?.thumb ? [h.note.anchor.thumb] : [])]))];
 
-export function notesToMarkdown(hits: NoteHit[], books: Map<string, BookRecord>, heading: string) {
+export function notesToMarkdown(hits: NoteHit[], books: Map<string, BookRecord>, heading: string, relations?: Map<string, string[]>) {
+  /** "相关笔记" block after a note: how it is connected to other notes (see `relationsFor`). */
+  const rel = (id: string) => (relations?.get(id)?.length ? [`**${t("export.related")}**`, "", ...relations.get(id)!.map((r) => `- ${r}`), ""] : []);
   const sorted = [...hits].sort(
     (x, y) =>
-      (books.get(x.bookId)?.title ?? "").localeCompare(books.get(y.bookId)?.title ?? "", "zh-CN") ||
+      collate(books.get(x.bookId)?.title ?? "", books.get(y.bookId)?.title ?? "") ||
       x.note.anchor.section - y.note.anchor.section ||
       x.note.anchor.start - y.note.anchor.start,
   );
-  const lines = [`# ${heading}`, "", `> 导出自「墨边」· ${new Date().toLocaleString()} · 共 ${hits.length} 条笔记`, ""];
+  const lines = [`# ${heading}`, "", t("export.header", { when: fmtDateTime(new Date()), n: hits.length }), ""];
   const free = hits.filter((h) => h.note.kind === "free").sort((x, y) => y.note.createdAt - x.note.createdAt);
   if (free.length) {
-    lines.push("## 随手记", "");
-    for (const { note } of free) lines.push(note.note.trim(), ...(note.images?.length ? ["", ...imageEmbeds(note.images)] : []), "", `<sub>${new Date(note.createdAt).toLocaleString()}</sub>`, "", "---", "");
+    lines.push(`## ${t("export.free")}`, "");
+    for (const { note } of free) lines.push(note.note.trim(), ...(note.images?.length ? ["", ...imageEmbeds(note.images)] : []), "", ...rel(note.id), `<sub>${new Date(note.createdAt).toLocaleString()}</sub>`, "", "---", "");
   }
   let current = "";
   let sectionOpen = false; // inside the 整体笔记 block of the current book
@@ -165,19 +172,21 @@ export function notesToMarkdown(hits: NoteHit[], books: Map<string, BookRecord>,
       current = bookId;
       sectionOpen = false;
       const b = books.get(bookId);
-      lines.push(`## 《${b?.title ?? "已移除的书"}》${b?.author ? ` · ${b.author}` : ""}`, "");
+      lines.push(`## ${t("kind.bookQuote", { title: b?.title ?? t("kind.removedBook") })}${b?.author ? ` · ${b.author}` : ""}`, "");
     }
     if (note.kind === "doc") {
-      if (!sectionOpen) lines.push("### 整体笔记", "");
+      if (!sectionOpen) lines.push(`### ${t("export.docNotes")}`, "");
       sectionOpen = true;
-      lines.push(note.note.trim(), ...(note.images?.length ? ["", ...imageEmbeds(note.images)] : []), "", `<sub>${new Date(note.createdAt).toLocaleDateString()}</sub>`, "", "---", "");
+      lines.push(note.note.trim(), ...(note.images?.length ? ["", ...imageEmbeds(note.images)] : []), "", ...rel(note.id), `<sub>${new Date(note.createdAt).toLocaleDateString()}</sub>`, "", "---", "");
       continue;
     }
-    if (sectionOpen) lines.push("### 摘录与笔记", "");
+    if (sectionOpen) lines.push(`### ${t("export.excerpts")}`, "");
     sectionOpen = false;
-    lines.push(`> ${note.anchor.exact.trim().replace(/\n+/g, "\n> ")}`, "");
+    if (note.anchor.region) lines.push(...(note.anchor.thumb ? [...imageEmbeds([note.anchor.thumb]), ""] : []), note.anchor.image ? `> ${t("kind.imageRegion")}` : `> ${t("kind.pageRegion", { page: note.anchor.section + 1 })}`, "");
+    else lines.push(`> ${note.anchor.exact.trim().replace(/\n+/g, "\n> ")}`, "");
     if (note.note.trim()) lines.push(note.note.trim(), "");
     if (note.images?.length) lines.push(...imageEmbeds(note.images), "");
+    lines.push(...rel(note.id));
     lines.push(`<sub>${swatch(note.color).name} · ${styleName(note.style)} · ${new Date(note.createdAt).toLocaleDateString()}</sub>`, "", "---", "");
   }
   return lines.join("\n");

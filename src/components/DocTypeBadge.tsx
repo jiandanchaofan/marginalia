@@ -1,4 +1,5 @@
 import type { BookRecord } from "../core/types";
+import { t } from "../i18n";
 
 export type DocType = "pdf" | "epub" | "md" | "txt" | "web";
 
@@ -14,7 +15,13 @@ export const DOC_TYPES: Record<DocType, { label: string; from: string; to: strin
   epub: { label: "EPUB", from: "#c08a2c", to: "#7a4f14" },
   md: { label: "Markdown", from: "#3f78bd", to: "#234777" },
   txt: { label: "TXT", from: "#707684", to: "#424856" },
-  web: { label: "网页", from: "#2a8f93", to: "#185766" },
+  web: {
+    get label() {
+      return t("doctype.web");
+    },
+    from: "#2a8f93",
+    to: "#185766",
+  },
 };
 
 const PAGE = "M6.5 2.5h7.8l4.2 4.2v13.8a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-17a1 1 0 0 1 1-1z";

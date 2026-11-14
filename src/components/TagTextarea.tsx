@@ -2,10 +2,12 @@ import { forwardRef, useImperativeHandle, useLayoutEffect, useMemo, useRef, useS
 import { createPortal } from "react-dom";
 import { Hash, X } from "lucide-react";
 import { parseTags, removeTag as stripTag, segments, suggestTags } from "../notes/tags";
-import { useGlobalTags } from "../notes/store";
+import { useAllTags } from "../notes/allTags";
 import { MAX_IMAGES, imagesIn, pickImageFiles, putImage } from "../notes/images";
 import { NoteImages } from "./NoteImages";
-import { applyFormat, continueList, type Edit, type FormatKind } from "../notes/edit";
+import { applyFormat, continueList, indentTodo, type Edit, type FormatKind } from "../notes/edit";
+import { completeTodoWords } from "../tasks/parse";
+import { t, t as tr } from "../i18n";
 
 const MIRROR_PROPS = [
   "boxSizing",
@@ -107,7 +109,7 @@ export const TagTextarea = forwardRef<TagTextareaHandle, Props>(function TagText
 ) {
   const ta = useRef<HTMLTextAreaElement>(null);
   const mirror = useRef<HTMLDivElement>(null);
-  const tags = useGlobalTags();
+  const tags = useAllTags();
   const [query, setQuery] = useState<string | null>(null); // text after '#' at the caret, null = closed
   const [index, setIndex] = useState(0);
   const [menuPos, setMenuPos] = useState<{ left: number; top: number } | null>(null);
@@ -180,26 +182,44 @@ export const TagTextarea = forwardRef<TagTextareaHandle, Props>(function TagText
   const addFiles = async (files: File[]) => {
     if (!onImages || !files.length) return;
     const room = MAX_IMAGES - imagesRef.current.length;
-    if (room <= 0) return onImageError?.(`最多添加 ${MAX_IMAGES} 张图片`);
+    if (room <= 0) return onImageError?.(t("tag.maxImages", { n: MAX_IMAGES }));
     try {
       const ids: string[] = [];
       for (const f of files.slice(0, room)) ids.push(await putImage(f));
       onImages([...new Set([...imagesRef.current, ...ids])]);
-      if (files.length > room) onImageError?.(`最多添加 ${MAX_IMAGES} 张图片，多余的已忽略`);
+      if (files.length > room) onImageError?.(t("tag.maxImagesIgnored", { n: MAX_IMAGES }));
     } catch (e) {
-      onImageError?.(`添加图片失败：${e instanceof Error ? e.message : e}`);
+      onImageError?.(t("tag.imageFail", { err: e instanceof Error ? e.message : String(e) }));
     }
   };
 
+  // After a programmatic edit (list continuation, indenting, formatting…) the caret is put back the moment the new text
+  // is in the DOM — not a frame later, so characters typed right after cannot land in the wrong place.
+  const pendingSel = useRef<Edit | null>(null);
+  useLayoutEffect(() => {
+    const p = pendingSel.current;
+    const t = ta.current;
+    if (p && t && p.value === value) {
+      t.setSelectionRange(p.start, p.end);
+      pendingSel.current = null;
+    }
+  }, [value]);
   const applyEdit = (e: Edit) => {
     const t = ta.current;
+    pendingSel.current = e;
     onChange(e.value);
     requestAnimationFrame(() => {
       t?.focus();
-      t?.setSelectionRange(e.start, e.end);
+      // still pending: the parent changed the text on its way back (e.g. normalised it) — fall back to the plain position
+      if (pendingSel.current === e) {
+        t?.setSelectionRange(e.start, e.end);
+        pendingSel.current = null;
+      }
     });
   };
 
+  const submitRef = useRef(onSubmit);
+  submitRef.current = onSubmit;
   const found = useMemo(() => parseTags(value), [value]);
   const removeTag = (tag: string) => {
     onChange(stripTag(value, tag));
@@ -252,8 +272,18 @@ export const TagTextarea = forwardRef<TagTextareaHandle, Props>(function TagText
         value={value}
         placeholder={placeholder}
         onChange={(e) => {
-          onChange(e.target.value);
-          detect(e.target.value, e.target.selectionStart);
+          const v = e.target.value;
+          const caret = e.target.selectionStart;
+          // a space right after `@下周` / `截止周五` on a todo line: turn the word into the absolute date
+          const done = v.length === value.length + 1 && v[caret - 1] === " " ? completeTodoWords(v, caret - 1) : null;
+          if (done) {
+            // done.value already ends with the space the user typed; the caret goes after it
+            pendingSel.current = { value: done.value, start: done.end + 1, end: done.end + 1 };
+            onChange(done.value);
+            return;
+          }
+          onChange(v);
+          detect(v, caret);
         }}
         onClick={(e) => detect(value, (e.target as HTMLTextAreaElement).selectionStart)}
         // Keep the tag-colouring layer under the text when the box scrolls.
@@ -297,14 +327,30 @@ export const TagTextarea = forwardRef<TagTextareaHandle, Props>(function TagText
           }
           const mod = e.ctrlKey || e.metaKey;
           const key = e.key.toLowerCase();
-          const fmt: FormatKind | null = mod && !e.altKey ? (!e.shiftKey ? ({ b: "b", i: "i", u: "u" } as Record<string, FormatKind>)[key] ?? null : key === "x" ? "s" : null) : null;
+          const fmt: FormatKind | null = mod && !e.altKey ? (!e.shiftKey ? ({ b: "b", i: "i", u: "u" } as Record<string, FormatKind>)[key] ?? null : key === "x" ? "s" : key === "t" ? "todo" : null) : null;
           if (fmt) {
             e.preventDefault();
             applyEdit(applyFormat(value, e.currentTarget.selectionStart, e.currentTarget.selectionEnd, fmt));
             return;
           }
+          if (e.key === "Tab" && !mod && !e.altKey && !e.nativeEvent.isComposing) {
+            // on todo lines Tab nests / Shift+Tab un-nests; elsewhere it keeps moving the focus
+            const nested = indentTodo(value, e.currentTarget.selectionStart, e.currentTarget.selectionEnd, e.shiftKey);
+            if (nested) {
+              e.preventDefault();
+              applyEdit(nested);
+              return;
+            }
+          }
           if (e.key === "Enter" && !mod && !e.shiftKey && !e.nativeEvent.isComposing && e.currentTarget.selectionStart === e.currentTarget.selectionEnd) {
-            const next = continueList(value, e.currentTarget.selectionStart);
+            const words = completeTodoWords(value, e.currentTarget.selectionStart); // `@明天` typed just before Enter
+            const base = words ?? { value, start: e.currentTarget.selectionStart, end: e.currentTarget.selectionStart };
+            const next = continueList(base.value, base.end);
+            if (words && !next) {
+              e.preventDefault();
+              applyEdit(words);
+              return;
+            }
             if (next) {
               e.preventDefault();
               applyEdit(next);
@@ -314,6 +360,13 @@ export const TagTextarea = forwardRef<TagTextareaHandle, Props>(function TagText
           if (e.key === "Escape") onEscape?.();
           if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
+            const words = completeTodoWords(value, e.currentTarget.selectionEnd);
+            if (words) {
+              // save with the absolute date: let the parent re-render with the new text first, then submit
+              onChange(words.value);
+              window.setTimeout(() => submitRef.current?.(), 0);
+              return;
+            }
             onSubmit?.();
           }
         }}
@@ -332,7 +385,7 @@ export const TagTextarea = forwardRef<TagTextareaHandle, Props>(function TagText
                   {i < arr.length - 1 && <i>/</i>}
                 </span>
               ))}
-              <button title="移除这个标签" onMouseDown={(e) => e.preventDefault()} onClick={() => removeTag(t)}>
+              <button title={tr("tag.removeTag")} onMouseDown={(e) => e.preventDefault()} onClick={() => removeTag(t)}>
                 <X size={11} />
               </button>
             </span>
@@ -352,7 +405,7 @@ export const TagTextarea = forwardRef<TagTextareaHandle, Props>(function TagText
                 {o.tag.includes("/") && <em>{o.tag.slice(0, o.tag.lastIndexOf("/") + 1)}</em>}
                 {o.tag.slice(o.tag.lastIndexOf("/") + 1)}
               </span>
-              <span className="tag-suggest-meta">{o.isNew ? "新建" : o.count}</span>
+              <span className="tag-suggest-meta">{o.isNew ? t("tag.new") : o.count}</span>
             </button>
           ))}
         </div>,

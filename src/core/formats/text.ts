@@ -2,6 +2,7 @@ import MarkdownIt from "markdown-it";
 import { Readability } from "@mozilla/readability";
 import type { LoadedDoc, TocItem } from "../types";
 import { flowDoc, headingToc, sanitize, type FlowSection } from "./flow";
+import { t } from "../../i18n";
 
 /** Decode text, falling back to GB18030 for the many legacy Chinese .txt files. */
 export function decodeText(bytes: Uint8Array): string {
@@ -97,7 +98,7 @@ function loadSnapshot(doc: Document, fileName: string): LoadedDoc {
   if (source) {
     const a = document.createElement("a");
     a.href = source;
-    a.textContent = "查看原网页";
+    a.textContent = t("doc.viewOriginal");
     by.append(parts.length ? " · " : "", a);
   }
   header.append(site, h, by);

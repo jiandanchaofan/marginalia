@@ -1,12 +1,28 @@
 import { useEffect, useState } from "react";
-import { DatabaseBackup, FileText, FolderOpen, Info, Palette, X } from "lucide-react";
+import { DatabaseBackup, FileText, FolderOpen, Info, Keyboard, Mail, Palette, SlidersHorizontal, Tag, X } from "lucide-react";
 import type { BookRecord } from "../core/types";
 import type { Settings } from "../settings";
-import { appVersion, backupApi, isTauri, type BackupStatus } from "../platform";
+import { appVersion, backupApi, confirmDialog, isTauri, openExternal, type BackupStatus } from "../platform";
 import { runMdBackup } from "../notes/backup";
 import { SettingsPanel } from "./Panels";
+import { reflectMuted, setReflectMuted } from "./ReflectBox";
+import { LANGS, brandName, t, type LangPref } from "../i18n";
+import type { Key } from "../i18n/zh-Hans";
+import { reviewTag } from "../tasks/words";
+import { readingStore } from "../reading/store";
+import { reviewStore } from "../review/store";
+import { syncIndex, useIndexState } from "../search/indexer";
+import { KeysPane } from "../palette/KeysPane";
+import { SyncPane } from "../sync/SyncPane";
+import { SYNC_VISIBLE } from "../sync/visible";
+import { DEFAULT_WEEK_TAG } from "../settings";
+import { normalizeTag } from "../notes/tags";
+import { CARDS_CHANGED, resetCards, toggleCard } from "../cards/windows";
+import { CARD_KINDS, cardOn } from "../cards/state";
+import { autostartState, setAutostart } from "../cards/tray";
+import { AppLogo } from "./AppLogo";
 
-type Tab = "look" | "backup" | "about";
+export type Tab = "look" | "general" | "keys" | "backup" | "about";
 
 interface Props {
   settings: Settings;
@@ -14,36 +30,75 @@ interface Props {
   onChange(p: Partial<Settings>): void;
   onClose(): void;
   notify(msg: string): void;
+  initialTab?: Tab;
 }
 
-const stampText = (s: string | null) => (s ? s.replace("_", " ").replace(/(\d\d)(\d\d)(\d\d)$/, "$1:$2:$3") : "还没有");
+const stampText = (s: string | null) => (s ? s.replace("_", " ").replace(/(\d\d)(\d\d)(\d\d)$/, "$1:$2:$3") : t("common.none"));
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export function SettingsDialog({ settings, books, onChange, onClose, notify }: Props) {
-  const [tab, setTab] = useState<Tab>("look");
+export function SettingsDialog({ settings, books, onChange, onClose, notify, initialTab }: Props) {
+  const [tab, setTab] = useState<Tab>(initialTab ?? "look");
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div className="modal settings-dialog" onMouseDown={(e) => e.stopPropagation()}>
-        <button className="icon-btn modal-close" onClick={onClose} title="关闭">
+        <button className="icon-btn modal-close" onClick={onClose} title={t("common.close")}>
           <X size={18} />
         </button>
-        <h2>设置</h2>
+        <h2>{t("settings.title")}</h2>
         <div className="segmented settings-tabs">
           <button className={tab === "look" ? "on" : ""} onClick={() => setTab("look")}>
-            <Palette size={14} /> 外观与阅读
+            <Palette size={14} /> {t("settings.tab.look")}
+          </button>
+          <button className={tab === "general" ? "on" : ""} onClick={() => setTab("general")}>
+            <SlidersHorizontal size={14} /> {t("settings.tab.general")}
+          </button>
+          <button className={tab === "keys" ? "on" : ""} onClick={() => setTab("keys")}>
+            <Keyboard size={14} /> {t("settings.tab.keys")}
           </button>
           <button className={tab === "backup" ? "on" : ""} onClick={() => setTab("backup")}>
-            <DatabaseBackup size={14} /> 数据与备份
+            <DatabaseBackup size={14} /> {t("settings.tab.backup")}
           </button>
           <button className={tab === "about" ? "on" : ""} onClick={() => setTab("about")}>
-            <Info size={14} /> 关于
+            <Info size={14} /> {t("settings.tab.about")}
           </button>
         </div>
-        <div className="settings-pane">
+        <div className={`settings-pane ${tab === "general" || tab === "backup" ? "cards" : ""}`}>
+          {tab === "look" && <LangPane s={settings} onChange={onChange} />}
           {tab === "look" && <SettingsPanel s={settings} onChange={onChange} isPdf={false} canZoom={isTauri} libZoom />}
+          {tab === "look" && <TodoPane />}
+          {tab === "general" && isTauri && <CardsPane notify={notify} />}
+          {tab === "general" && <ReadingPane s={settings} onChange={onChange} notify={notify} />}
+          {tab === "general" && <BookSearchPane s={settings} onChange={onChange} books={books} />}
+          {tab === "general" && <DeletePane s={settings} onChange={onChange} />}
+          {tab === "keys" && <KeysPane s={settings} onChange={onChange} />}
+          {tab === "backup" && SYNC_VISIBLE && <SyncPane notify={notify} />}
           {tab === "backup" && <BackupPane books={books} notify={notify} />}
           {tab === "about" && <AboutPane />}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** The question that follows ticking a todo: "what did you find?" */
+function TodoPane() {
+  const [ask, setAsk] = useState(() => !reflectMuted());
+  return (
+    <div className="panel settings-panel">
+      <div className="panel-title">{t("settings.todo.title")}</div>
+      <div className="settings-body">
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={ask}
+          onChange={(e) => {
+            setAsk(e.target.checked);
+            setReflectMuted(!e.target.checked);
+          }}
+        />{" "}
+        {t("settings.todo.ask")}
+      </label>
+      <p className="settings-hint">{t("settings.todo.hint", { tag: reviewTag() })}</p>
       </div>
     </div>
   );
@@ -54,11 +109,11 @@ function BackupPane({ books, notify }: { books: BookRecord[]; notify(msg: string
   const [busy, setBusy] = useState<"db" | "md" | null>(null);
 
   useEffect(() => {
-    if (backupApi.available) backupApi.status().then(setSt, (e) => notify(`读取备份状态失败：${errText(e)}`));
+    if (backupApi.available) backupApi.status().then(setSt, (e) => notify(t("backup.status.fail", { err: errText(e) })));
   }, [notify]);
 
-  if (!backupApi.available) return <p className="settings-hint">备份只在桌面版中可用（网页预览模式的数据保存在浏览器里）。</p>;
-  if (!st) return <p className="settings-hint">正在读取…</p>;
+  if (!backupApi.available) return <p className="settings-hint">{t("backup.desktopOnly")}</p>;
+  if (!st) return <p className="settings-hint">{t("common.loading")}</p>;
 
   const save = async (patch: Partial<BackupStatus["config"]>) => {
     try {
@@ -75,9 +130,9 @@ function BackupPane({ books, notify }: { books: BookRecord[]; notify(msg: string
     setBusy(kind);
     try {
       setSt(kind === "db" ? await backupApi.dbNow() : await runMdBackup(books));
-      notify(kind === "db" ? "数据库备份完成" : "已导出为 Markdown");
+      notify(kind === "db" ? t("backup.dbDone") : t("backup.mdDone"));
     } catch (e) {
-      notify(`备份失败：${errText(e)}`);
+      notify(t("backup.fail", { err: errText(e) }));
     } finally {
       setBusy(null);
     }
@@ -90,74 +145,68 @@ function BackupPane({ books, notify }: { books: BookRecord[]; notify(msg: string
       </div>
       <div className="backup-folder-btns">
         <button className="panel-btn" onClick={() => choose(key, title)}>
-          更改…
+          {t("backup.change")}
         </button>
         {st.config[key] && (
           <button className="panel-btn" onClick={() => save({ [key]: null })} title={def}>
-            恢复默认
+            {t("backup.default")}
           </button>
         )}
         <button className="panel-btn" onClick={() => backupApi.openDir(dir).catch((e) => notify(errText(e)))}>
-          <FolderOpen size={13} /> 打开
+          <FolderOpen size={13} /> {t("backup.open")}
         </button>
       </div>
     </div>
   );
 
   return (
-    <div className="backup-pane">
-      <section>
-        <h3>
-          <DatabaseBackup size={15} /> 数据库备份
-        </h3>
-        <p className="settings-hint">每天自动备份一份完整的笔记数据库（含订阅），保留最近 3 份；笔记里的图片同步复制到同一文件夹的 images 里。可用于完整恢复。</p>
-        {folder("dbDir", st.dbDir, st.defaultDbDir, "选择数据库备份文件夹")}
+    <>
+      <div className="panel settings-panel">
+        <div className="panel-title">
+          <DatabaseBackup size={15} /> {t("backup.db.title")}
+        </div>
+        <div className="settings-body">
+        <p className="settings-hint">{t("backup.db.hint")}</p>
+        {folder("dbDir", st.dbDir, st.defaultDbDir, t("backup.db.pick"))}
         <div className="backup-line">
           <span>
-            最近一次：{st.dbLast ?? "还没有"}　·　已保留 {st.dbCount} 份
+            {t("backup.last", { when: st.dbLast ?? t("common.none"), count: st.dbCount })}
           </span>
           <button className="panel-btn" disabled={busy !== null} onClick={() => run("db")}>
-            {busy === "db" ? "备份中…" : "立即备份"}
+            {busy === "db" ? t("backup.db.busy") : t("backup.db.run")}
           </button>
         </div>
-      </section>
+        </div>
+      </div>
 
-      <section>
-        <h3>
-          <FileText size={15} /> Markdown 备份
-        </h3>
-        <p className="settings-hint">
-          每天自动把全部笔记导出成一个 Markdown 文件（notes.md，图片用 Obsidian 的 ![[ ]] 嵌入，放在同级 images 文件夹），每次一个独立文件夹，保留最近 3 份。可直接用 Obsidian 等软件打开。
-        </p>
+      <div className="panel settings-panel">
+        <div className="panel-title">
+          <FileText size={15} /> {t("backup.md.title")}
+        </div>
+        <div className="settings-body">
+        <p className="settings-hint">{t("backup.md.hint")}</p>
         <label className="check">
-          <input type="checkbox" checked={st.config.mdEnabled} onChange={(e) => save({ mdEnabled: e.target.checked })} /> 启用 Markdown 自动备份
+          <input type="checkbox" checked={st.config.mdEnabled} onChange={(e) => save({ mdEnabled: e.target.checked })} /> {t("backup.md.enable")}
         </label>
-        {folder("mdDir", st.mdDir, st.defaultMdDir, "选择 Markdown 备份文件夹")}
+        {folder("mdDir", st.mdDir, st.defaultMdDir, t("backup.md.pick"))}
         <div className="backup-line">
           <span>
-            最近一次：{stampText(st.mdLast)}　·　已保留 {st.mdCount} 份
+            {t("backup.last", { when: stampText(st.mdLast), count: st.mdCount })}
           </span>
           <button className="panel-btn" disabled={busy !== null} onClick={() => run("md")}>
-            {busy === "md" ? "导出中…" : "立即导出"}
+            {busy === "md" ? t("backup.md.busy") : t("backup.md.run")}
           </button>
         </div>
-      </section>
-      <p className="settings-hint">自动备份在墨边运行期间进行；两种备份的文件夹互相独立，可以分别放到网盘同步目录或移动硬盘上。</p>
-    </div>
+        </div>
+      </div>
+      <p className="settings-hint backup-note">{t("backup.note")}</p>
+    </>
   );
 }
 
-const FEATURES: [string, string][] = [
-  ["阅读", "支持 EPUB、PDF、TXT、Markdown、HTML 文档；主题、中英文字体、字号、行距、缩进都可以调整，进度自动记住。"],
-  ["划线与批注", "选中文字即可高亮或划线，多种颜色和样式；想法写在原文旁边，可以双侧、单侧或收起显示。"],
-  ["标签", "在笔记里写 #标签 即可归类，支持 #父/子 的层级标签，可重命名、合并和置顶。"],
-  ["笔记页", "汇总所有书和文章里的笔记，按标签、颜色、类型、时间筛选和搜索；支持每日回顾、写作热力图，并可导出为 Markdown（含图片）。"],
-  ["随手记", "记录与书籍、文章无关的想法，随时一句话记下来，同样参与标签、搜索和热力图。"],
-  ["笔记配图", "在任何笔记里粘贴截图、拖入图片或选择本地图片；列表里显示缩略图，点开看大图，滚轮缩放。"],
-  ["书架", "导入的书和文章集中管理，可为每本标注「阅读兴趣」，按兴趣分类筛选。"],
-  ["探索", "订阅博客、网站（RSS / Atom）和公众号合集，新文章汇成收件箱；喜欢的点「保存精读」存入书架，偶遇的好文章用「添加网文」，或直接 Ctrl + V 粘贴网址。"],
-  ["备份", "每天自动备份数据库，也可导出为 Markdown，两种备份各有独立的文件夹，可在「数据与备份」里设置。"],
-];
+const CONTACT = "shengminjiang@hotmail.com";
+
+const FEATURES = [1, 2, 3, 4, 5, 6];
 
 function AboutPane() {
   const [v, setV] = useState("");
@@ -167,23 +216,280 @@ function AboutPane() {
   return (
     <div className="about-pane">
       <div className="about-brand">
-        <span className="brand-mark">墨</span>
+        <AppLogo />
         <div>
-          <div className="brand-name">墨边 · Marginalia</div>
-          <div className="brand-sub">墨落两边，读懂字里行间</div>
+          <div className="brand-name">{brandName()}</div>
+          <div className="brand-sub">{t("about.slogan")}</div>
         </div>
       </div>
-      <p className="about-name">「墨边」意为墨迹落在书页的边缘；Marginalia 是拉丁语，指读者写在书页空白处的批注，这也正是这个应用想帮你留下的东西。</p>
-      <p>版本 {v}</p>
-      <h3>功能介绍</h3>
-      <ul className="about-list">
-        {FEATURES.map(([title, text]) => (
-          <li key={title}>
-            <b>{title}</b>
-            <span>{text}</span>
-          </li>
+      <p className="about-name">{t("about.name")}</p>
+      <p className="about-contact">
+        <Tag size={14} /> {t("about.version", { v })}
+      </p>
+      <p className="about-contact">
+        <Mail size={14} /> {t("about.contact")}
+        <a
+          href={`mailto:${CONTACT}`}
+          onClick={(e) => {
+            e.preventDefault();
+            void openExternal(`mailto:${CONTACT}`);
+          }}
+        >
+          {CONTACT}
+        </a>
+      </p>
+      <section className="about-features">
+        <h3>{t("about.features")}</h3>
+        <ul className="about-list">
+          {FEATURES.map((n) => (
+            <li key={n}>
+              <b>{t(`about.f${n}.t` as Key)}</b>
+              <span>{t(`about.f${n}.d` as Key)}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+/** Interface language: follow the system or pick one. */
+function LangPane({ s, onChange }: { s: Settings; onChange(p: Partial<Settings>): void }) {
+  const cur = s.lang ?? "auto";
+  const opts: [LangPref, string][] = [["auto", t("settings.lang.auto")], ...LANGS.map((l): [LangPref, string] => [l.key, l.name])];
+  return (
+    <div className="panel settings-panel">
+      <div className="panel-title">{t("settings.lang.title")}</div>
+      <div className="settings-body">
+        <div className="segmented">
+          {opts.map(([k, name]) => (
+            <button key={k} className={k === cur ? "on" : ""} onClick={() => onChange({ lang: k })}>
+              {name}
+            </button>
+          ))}
+        </div>
+        <p className="settings-hint">{t("settings.lang.hint")}</p>
+      </div>
+    </div>
+  );
+}
+
+/** Desktop cards and starting with the system (desktop app only). */
+function CardsPane({ notify }: { notify(msg: string): void }) {
+  const [, again] = useState(0);
+  const [auto, setAuto] = useState(false);
+  useEffect(() => {
+    const on = () => again((n) => n + 1);
+    window.addEventListener(CARDS_CHANGED, on);
+    void autostartState().then(setAuto);
+    return () => window.removeEventListener(CARDS_CHANGED, on);
+  }, []);
+  return (
+    <div className="panel settings-panel">
+      <div className="panel-title">{t("cs.title")}</div>
+      <div className="settings-body">
+        {CARD_KINDS.map((k) => (
+          <label key={k} className="check">
+            <input type="checkbox" checked={cardOn(k)} onChange={() => void toggleCard(k)} /> {t(k === "notes" ? "cs.notes" : "cs.todo")}
+          </label>
         ))}
-      </ul>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={auto}
+            onChange={async (e) => {
+              setAuto(e.target.checked);
+              await setAutostart(e.target.checked).catch((err) => notify(String(err)));
+              setAuto(await autostartState());
+            }}
+          />{" "}
+          {t("cs.autostart")}
+        </label>
+        <p className="settings-hint">{t("cs.hint")}</p>
+        <button
+          className="panel-btn"
+          onClick={async () => {
+            await resetCards();
+            notify(t("cs.resetDone"));
+          }}
+        >
+          {t("cs.reset")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Reading log and the weekly review. */
+function ReadingPane({ s, onChange, notify }: { s: Settings; onChange(p: Partial<Settings>): void; notify(msg: string): void }) {
+  return (
+    <>
+    <div className="panel settings-panel">
+      <div className="panel-title">{t("rset.title")}</div>
+      <div className="settings-body">
+        <label className="check">
+          <input type="checkbox" checked={s.readingTrack !== false} onChange={(e) => onChange({ readingTrack: e.target.checked })} /> {t("rset.track")}
+        </label>
+        <label>{t("rset.idle")}</label>
+        <div className="segmented">
+          {[60, 90, 180].map((n) => (
+            <button key={n} className={(s.readingIdle ?? 90) === n ? "on" : ""} onClick={() => onChange({ readingIdle: n })}>
+              {n < 120 ? t("rset.idleSecs", { n }) : t("rset.idleMin", { n: n / 60 })}
+            </button>
+          ))}
+        </div>
+        <p className="settings-hint">{t("rset.hint")}</p>
+        <button
+          className="panel-btn"
+          onClick={async () => {
+            if (!(await confirmDialog(t("rset.clearConfirm")))) return;
+            await readingStore.clear();
+            notify(t("rset.cleared"));
+          }}
+        >
+          {t("rset.clear")}
+        </button>
+      </div>
+    </div>
+    <div className="panel settings-panel">
+      <div className="panel-title">{t("wset.title")}</div>
+      <div className="settings-body">
+        <label>{t("wset.weekStart")}</label>
+        <div className="segmented">
+          <button className={s.weekStart !== 0 ? "on" : ""} onClick={() => onChange({ weekStart: 1 })}>
+            {t("wset.mon")}
+          </button>
+          <button className={s.weekStart === 0 ? "on" : ""} onClick={() => onChange({ weekStart: 0 })}>
+            {t("wset.sun")}
+          </button>
+        </div>
+        <label className="check">
+          <input type="checkbox" checked={s.weekPrompt !== false} onChange={(e) => onChange({ weekPrompt: e.target.checked })} /> {t("wset.prompt")}
+        </label>
+        <label>{t("wset.tag")}</label>
+        <WeekTagInput value={s.weekTag ?? DEFAULT_WEEK_TAG} onSave={(v) => onChange({ weekTag: v })} />
+        <p className="settings-hint">{t("wset.tagHint")}</p>
+      </div>
+    </div>
+    <div className="panel settings-panel">
+      <div className="panel-title">{t("rv.title")}</div>
+      <div className="settings-body">
+        <label className="check">
+          <input type="checkbox" checked={s.reviewOn !== false} onChange={(e) => onChange({ reviewOn: e.target.checked })} /> {t("rv.on")}
+        </label>
+        <label>{t("rv.cap")}</label>
+        <div className="segmented">
+          {[3, 5, 10, 20, 0].map((n) => (
+            <button key={n} className={(s.reviewCap ?? 5) === n ? "on" : ""} onClick={() => onChange({ reviewCap: n })}>
+              {n === 0 ? t("rv.capAll") : t("rv.capOpt", { n })}
+            </button>
+          ))}
+        </div>
+        <label>{t("rv.exclude")}</label>
+        <ExcludeInput value={(s.reviewExclude ?? []).join(" ")} onSave={(v) => onChange({ reviewExclude: v.split(/[\s,，]+/).map((x) => normalizeTag(x.replace(/^#/, ""))).filter(Boolean) })} />
+        <label>{t("rv.dayStart")}</label>
+        <select value={s.reviewDayStart ?? 4} onChange={(e) => onChange({ reviewDayStart: Number(e.target.value) })}>
+          {[0, 1, 2, 3, 4, 5, 6].map((h) => (
+            <option key={h} value={h}>
+              {t("rv.hour", { n: h })}
+            </option>
+          ))}
+        </select>
+        <p className="settings-hint">{t("rv.hint")}</p>
+        <button
+          className="panel-btn"
+          onClick={async () => {
+            if (!(await confirmDialog(t("rv.resetConfirm")))) return;
+            await reviewStore.reset();
+            notify(t("rv.resetDone"));
+          }}
+        >
+          {t("rv.reset")}
+        </button>
+      </div>
+    </div>
+    </>
+  );
+}
+
+/** The index of the books' text: on / off, how far it is, how much room it takes, rebuild. */
+function BookSearchPane({ s, onChange, books }: { s: Settings; onChange(p: Partial<Settings>): void; books: BookRecord[] }) {
+  const ix = useIndexState();
+  const on = s.bookSearch !== false;
+  const pct = ix.total ? Math.round((ix.done / ix.total) * 100) : 100;
+  return (
+    <div className="panel settings-panel">
+      <div className="panel-title">{t("bs.title")}</div>
+      <div className="settings-body">
+        <label className="check">
+          <input type="checkbox" checked={on} onChange={(e) => onChange({ bookSearch: e.target.checked })} /> {t("bs.on")}
+        </label>
+        {on && (
+          <>
+            <p className="settings-hint">
+              {ix.running ? t("bs.running", { done: ix.done, total: ix.total, title: ix.current }) : t("bs.status", { n: ix.indexed, total: ix.eligible, size: (ix.size / 1048576).toFixed(1) })}
+              {ix.noText > 0 && ` ${t("bs.noText", { n: ix.noText })}`}
+              {ix.failed > 0 && ` ${t("bs.failed", { n: ix.failed })}`}
+            </p>
+            {ix.running && (
+              <div className="ix-bar">
+                <i style={{ width: `${pct}%` }} />
+              </div>
+            )}
+            <button className="panel-btn" disabled={ix.running} onClick={() => void syncIndex(books, { force: true })}>
+              {t("bs.rebuild")}
+            </button>
+          </>
+        )}
+        <p className="settings-hint">{t("bs.hint")}</p>
+      </div>
+    </div>
+  );
+}
+
+/** Whether deleting asks first. */
+function DeletePane({ s, onChange }: { s: Settings; onChange(p: Partial<Settings>): void }) {
+  return (
+    <div className="panel settings-panel">
+      <div className="panel-title">{t("tr.setTitle")}</div>
+      <div className="settings-body">
+        <label className="check">
+          <input type="checkbox" checked={s.confirmDelete !== false} onChange={(e) => onChange({ confirmDelete: e.target.checked })} /> {t("tr.setConfirm")}
+        </label>
+        <p className="settings-hint">{t("tr.setHint")}</p>
+      </div>
+    </div>
+  );
+}
+
+function ExcludeInput({ value, onSave }: { value: string; onSave(v: string): void }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  return (
+    <div className="week-tag">
+      <input value={text} onChange={(e) => setText(e.target.value)} onBlur={() => text !== value && onSave(text)} onKeyDown={(e) => e.key === "Enter" && (e.currentTarget.blur(), e.preventDefault())} placeholder="#tag" spellCheck={false} />
+    </div>
+  );
+}
+
+/** The tag written on weekly reviews: typed with or without #, saved when the box is left or Enter is pressed. */
+function WeekTagInput({ value, onSave }: { value: string; onSave(v: string): void }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const commit = () => {
+    const v = normalizeTag(text.replace(/^#/, "")) || DEFAULT_WEEK_TAG;
+    setText(v);
+    if (v !== value) onSave(v);
+  };
+  return (
+    <div className="week-tag">
+      <span>#</span>
+      <input value={text.replace(/^#/, "")} onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && (e.currentTarget.blur(), e.preventDefault())} placeholder={DEFAULT_WEEK_TAG} spellCheck={false} />
+      {text !== DEFAULT_WEEK_TAG && (
+        <button className="zoom-reset" onClick={() => (setText(DEFAULT_WEEK_TAG), onSave(DEFAULT_WEEK_TAG))}>
+          {t("common.reset")}
+        </button>
+      )}
     </div>
   );
 }

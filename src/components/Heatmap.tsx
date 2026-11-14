@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dayKey, notesStore, useNotesVersion, type NoteStats } from "../notes/store";
 import { dayLabel } from "../notes/query";
+import { t } from "../i18n";
 
 const CELL = 10; // minimum square size; squares stretch to fill the sidebar
 const GAP = 3;
@@ -51,15 +52,15 @@ export function Heatmap({ selected, onPick }: { selected?: string; onPick(day: s
       <div className="heat-stats">
         <div>
           <b>{stats.total}</b>
-          <span>笔记</span>
+          <span>{t("heat.notes")}</span>
         </div>
         <div>
           <b>{stats.tags}</b>
-          <span>标签</span>
+          <span>{t("heat.tags")}</span>
         </div>
         <div>
           <b>{activeDays}</b>
-          <span>天</span>
+          <span>{t("heat.days")}</span>
         </div>
       </div>
       <div ref={box} className="heat-box">
@@ -71,7 +72,7 @@ export function Heatmap({ selected, onPick }: { selected?: string; onPick(day: s
               <button
                 key={c.key}
                 className={`heat-cell l${level(c.n)} ${c.key === todayKey ? "today" : ""} ${c.key === selected ? "picked" : ""}`}
-                title={`${dayLabel(c.key)} · ${c.n ? `${c.n} 条笔记` : "没有笔记"}`}
+                title={c.n ? t("heat.dayTitle", { day: dayLabel(c.key), n: c.n }) : t("heat.dayNone", { day: dayLabel(c.key) })}
                 onClick={() => onPick(c.key === selected ? undefined : c.key)}
               />
             ),
@@ -79,11 +80,11 @@ export function Heatmap({ selected, onPick }: { selected?: string; onPick(day: s
         </div>
       </div>
       <div className="heat-legend">
-        <span>少</span>
+        <span>{t("heat.less")}</span>
         {[0, 1, 2, 3, 4].map((l) => (
           <i key={l} className={`heat-cell l${l}`} />
         ))}
-        <span>多</span>
+        <span>{t("heat.more")}</span>
       </div>
     </div>
   );

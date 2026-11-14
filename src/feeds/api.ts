@@ -1,6 +1,7 @@
 /** Subscriptions bridge (desktop only: fetching other sites needs the native HTTP client). */
 import { useEffect, useState } from "react";
 import { isTauri } from "../platform";
+import { t } from "../i18n";
 
 export interface Source {
   id: string;
@@ -56,7 +57,7 @@ export interface FeedItem {
 export type ItemView = "all" | "unread" | "saved" | "dismissed";
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  if (!isTauri) throw new Error("订阅功能需要在墨边桌面应用中使用。");
+  if (!isTauri) throw new Error(t("err.feedsDesktop"));
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<T>(cmd, args);
 }
@@ -108,7 +109,7 @@ export async function recordManualArticle(a: { id: string; url: string; title: s
   if (!sources.some((s) => s.id === MANUAL_SOURCE_ID)) {
     await feedsApi.saveSource({
       id: MANUAL_SOURCE_ID,
-      title: "手动添加",
+      title: t("ib.manual"),
       siteUrl: "",
       feedUrl: "manual:",
       kind: "manual",

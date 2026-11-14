@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Bookmark, Check, Copy, Globe, Loader2, X } from "lucide-react";
 import { clipArticle, looksLikeUrl, type ClipProgress, type ClipResult } from "../web/clip";
+import { t } from "../i18n";
+import { localizeErr } from "../i18n/errors";
 
 export const BOOKMARKLET = "javascript:location.href='marginalia://clip?url='+encodeURIComponent(location.href)";
 
 const STAGES: { key: ClipProgress["stage"]; label: string }[] = [
-  { key: "fetch", label: "抓取页面" },
-  { key: "extract", label: "提取正文" },
-  { key: "images", label: "保存图片" },
-  { key: "save", label: "存入书架" },
+  { key: "fetch", get label() { return t("clip.stage.fetch"); } },
+  { key: "extract", get label() { return t("clip.stage.extract"); } },
+  { key: "images", get label() { return t("clip.stage.images"); } },
+  { key: "save", get label() { return t("clip.stage.save"); } },
 ];
 
 interface Props {
@@ -45,7 +47,7 @@ export function ClipDialog({ initialUrl = "", autoStart, onDone, onClose }: Prop
   const start = async (target = url) => {
     const u = target.trim();
     if (!looksLikeUrl(u)) {
-      setError("请输入以 http:// 或 https:// 开头的网址");
+      setError(t("clip.badUrl"));
       return;
     }
     setError(null);
@@ -71,13 +73,13 @@ export function ClipDialog({ initialUrl = "", autoStart, onDone, onClose }: Prop
   return (
     <div className="modal-backdrop" onMouseDown={() => !running && onClose()}>
       <div className="modal clip-dialog" onMouseDown={(e) => e.stopPropagation()}>
-        <button className="icon-btn modal-close" onClick={onClose} title="关闭">
+        <button className="icon-btn modal-close" onClick={onClose} title={t("common.close")}>
           <X size={18} />
         </button>
         <h2>
-          <Globe size={20} /> 保存网页文章
+          <Globe size={20} /> {t("clip.title")}
         </h2>
-        <p className="modal-sub">保存为离线快照（含图片），之后可以像书一样阅读、标注、写笔记。</p>
+        <p className="modal-sub">{t("clip.sub")}</p>
 
         <form
           className="clip-form"
@@ -90,7 +92,7 @@ export function ClipDialog({ initialUrl = "", autoStart, onDone, onClose }: Prop
             autoFocus={!autoStart}
             value={url}
             disabled={running}
-            placeholder="粘贴文章网址，例如 https://mp.weixin.qq.com/s/…"
+            placeholder={t("clip.placeholder")}
             onChange={(e) => {
               setUrl(e.target.value);
               setError(null);
@@ -98,7 +100,7 @@ export function ClipDialog({ initialUrl = "", autoStart, onDone, onClose }: Prop
           />
           <button className="primary-btn" type="submit" disabled={running || !url.trim()}>
             {running ? <Loader2 size={16} className="spin" /> : null}
-            {running ? "保存中…" : "保存并阅读"}
+            {running ? t("clip.saving") : t("clip.saveRead")}
           </button>
         </form>
 
@@ -117,18 +119,18 @@ export function ClipDialog({ initialUrl = "", autoStart, onDone, onClose }: Prop
             ))}
           </ol>
         )}
-        {error && <div className="clip-error">{error}</div>}
+        {error && <div className="clip-error">{localizeErr(error)}</div>}
 
         <div className="clip-bookmarklet">
           <div className="bm-title">
-            <Bookmark size={15} /> 在浏览器里一键保存
+            <Bookmark size={15} /> {t("clip.bookmark")}
           </div>
           <p>
-            把下面的按钮<b>拖到浏览器的书签栏</b>。以后在任意文章页点一下它，浏览器会询问是否打开「墨边」，确认后文章就会自动保存。
+            {t("clip.drag1")}<b>{t("clip.drag2")}</b>{t("clip.drag3")}
           </p>
           <div className="bm-row">
             <a ref={linkRef} className="bm-link" onClick={(e) => e.preventDefault()} draggable>
-              存到墨边
+              {t("clip.bmName")}
             </a>
             <button
               className="batch-btn"
@@ -139,10 +141,10 @@ export function ClipDialog({ initialUrl = "", autoStart, onDone, onClose }: Prop
                 })
               }
             >
-              {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "已复制" : "复制书签代码"}
+              {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? t("clip.copied") : t("clip.copy")}
             </button>
           </div>
-          <p className="bm-hint">拖不动时：在书签栏右键 →「添加网页」，名称填“存到墨边”，网址粘贴刚复制的代码。</p>
+          <p className="bm-hint">{t("clip.bmHint")}</p>
         </div>
       </div>
     </div>

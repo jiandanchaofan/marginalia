@@ -2,14 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { useImage } from "../notes/images";
+import { t as tr } from "../i18n";
 
 function Thumb({ id, onOpen, onRemove }: { id: string; onOpen(): void; onRemove?(): void }) {
   const { url, failed } = useImage(id);
   return (
     <span className={`ni-thumb ${failed ? "failed" : ""}`}>
-      {url ? <img src={url} alt="" draggable={false} onClick={onOpen} /> : <i>{failed ? "图片丢失" : ""}</i>}
+      {url ? <img src={url} alt="" draggable={false} onClick={onOpen} /> : <i>{failed ? tr("img.lost") : ""}</i>}
       {onRemove && (
-        <button className="ni-remove" title="移除图片" onMouseDown={(e) => e.preventDefault()} onClick={onRemove}>
+        <button className="ni-remove" title={tr("img.remove")} onMouseDown={(e) => e.preventDefault()} onClick={onRemove}>
           <X size={11} />
         </button>
       )}
@@ -80,7 +81,7 @@ function Lightbox({ id, onClose }: { id: string; onClose(): void }) {
           onDoubleClick={() => setView({ s: 1, x: 0, y: 0 })}
         />
       )}
-      <div className="ni-zoom-hint">{Math.round(view.s * 100)}% · 滚轮缩放 · 拖动平移 · 双击还原 · Esc 关闭</div>
+      <div className="ni-zoom-hint">{tr("img.zoomHint", { pct: Math.round(view.s * 100) })}</div>
     </div>,
     document.body,
   );
@@ -96,6 +97,17 @@ export function NoteImages({ ids, onRemove }: { ids?: string[]; onRemove?(id: st
         <Thumb key={id} id={id} onOpen={() => setOpen(id)} onRemove={onRemove && (() => onRemove(id))} />
       ))}
       {open && <Lightbox id={open} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
+/** The picture of a boxed page area, standing in for the quoted text of a region annotation. */
+export function RegionQuote({ id, page, onOpen, className = "region-quote" }: { id?: string; page?: number; onOpen?(): void; className?: string }) {
+  const { url, failed } = useImage(id ?? "");
+  return (
+    <div className={className} title={onOpen ? tr("img.backToText") : undefined} onClick={onOpen}>
+      {id && url ? <img src={url} alt="" draggable={false} /> : <span className="region-quote-empty">{id && !failed ? "" : tr("img.thumbMissing")}</span>}
+      <em>{page === undefined ? tr("kind.image") : tr("kind.pageLabel", { page: page + 1 })}</em>
     </div>
   );
 }

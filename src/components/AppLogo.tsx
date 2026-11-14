@@ -1,0 +1,39 @@
+import { useId } from "react";
+
+/** The app icon (a page with a highlighted line and a note in the margin), drawn as SVG: the same artwork as src-tauri/icons/app-icon.svg. */
+export function AppLogo({ className = "brand-mark" }: { className?: string }) {
+  const id = useId().replace(/:/g, "");
+  return (
+    <span className={className} aria-hidden="true">
+      <svg viewBox="64 64 896 896" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id={`${id}bg`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#3a3029" />
+            <stop offset="1" stopColor="#1e1915" />
+          </linearGradient>
+          <linearGradient id={`${id}pp`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#fbf7ef" />
+            <stop offset="1" stopColor="#efe7d8" />
+          </linearGradient>
+        </defs>
+        <rect x="64" y="64" width="896" height="896" rx="200" fill={`url(#${id}bg)`} />
+        <rect x="250" y="210" width="430" height="604" rx="26" fill={`url(#${id}pp)`} />
+        <g fill="#cfc4b2">
+          <rect x="300" y="292" width="330" height="22" rx="11" />
+          <rect x="300" y="362" width="300" height="22" rx="11" />
+          <rect x="300" y="502" width="320" height="22" rx="11" />
+          <rect x="300" y="572" width="250" height="22" rx="11" />
+          <rect x="300" y="642" width="310" height="22" rx="11" />
+          <rect x="300" y="712" width="200" height="22" rx="11" />
+        </g>
+        <rect x="290" y="420" width="290" height="44" rx="10" fill="#f2c94c" />
+        <rect x="300" y="432" width="260" height="20" rx="10" fill="#b58a2a" opacity="0.55" />
+        <path d="M600 442 C 650 442, 660 400, 712 400" fill="none" stroke="#f2c94c" strokeWidth="10" strokeLinecap="round" />
+        <rect x="700" y="330" width="120" height="150" rx="20" fill="#f2c94c" />
+        <rect x="726" y="368" width="68" height="14" rx="7" fill="#3a3029" opacity="0.55" />
+        <rect x="726" y="400" width="52" height="14" rx="7" fill="#3a3029" opacity="0.55" />
+        <rect x="726" y="432" width="60" height="14" rx="7" fill="#3a3029" opacity="0.55" />
+      </svg>
+    </span>
+  );
+}

@@ -6,7 +6,7 @@ export interface Edit {
   end: number;
 }
 
-export type FormatKind = "b" | "i" | "u" | "s" | "ul" | "ol";
+export type FormatKind = "b" | "i" | "u" | "s" | "ul" | "ol" | "todo";
 
 const MARKS: Record<"b" | "i" | "u" | "s", [string, string]> = {
   b: ["**", "**"],
@@ -47,7 +47,7 @@ export function toggleWrap(value: string, start: number, end: number, open: stri
   return { value: value.slice(0, start) + open + sel + close + value.slice(end), start: start + open.length, end: end + open.length };
 }
 
-const PREFIX = /^(?:[-•] |\d{1,3}\. )/;
+const PREFIX = /^(?:[-•] (?:\[[ xX]\] ?)?|\d{1,3}\. )/;
 
 /** Turn the lines touched by the selection into a bullet / numbered list, or back into plain lines when they already are one. */
 export function toggleList(value: string, start: number, end: number, ordered: boolean): Edit {
@@ -75,7 +75,68 @@ export function toggleList(value: string, start: number, end: number, ordered: b
   return { value: out, start: from, end: from + block.length };
 }
 
+const TODO_PREFIX = /^(\s*)- \[[ xX]\] ?/;
+
+/** Turn the lines touched by the selection into todo lines (`- [ ] `), or back into plain lines when they all are todos. */
+export function toggleTodo(value: string, start: number, end: number): Edit {
+  const from = value.lastIndexOf("\n", start - 1) + 1;
+  let to = value.indexOf("\n", end);
+  if (to < 0) to = value.length;
+  const lines = value.slice(from, to).split("\n");
+  const filled = lines.filter((l) => l.trim());
+  const allOn = filled.length > 0 && filled.every((l) => TODO_PREFIX.test(l));
+  const next = lines.map((l) => {
+    if (allOn) return l.replace(TODO_PREFIX, "$1");
+    if (!l.trim() && filled.length) return l;
+    const indent = /^\s*/.exec(l)![0];
+    const bare = l.slice(indent.length).replace(PREFIX, "");
+    return `${indent}- [ ] ${bare}`;
+  });
+  const block = next.join("\n");
+  const out = value.slice(0, from) + block + value.slice(to);
+  if (start === end) {
+    const caret = Math.max(from, start + next[0].length - lines[0].length);
+    return { value: out, start: caret, end: caret };
+  }
+  return { value: out, start: from, end: from + block.length };
+}
+
+/** Tab / Shift+Tab on todo lines: one nesting level (two spaces) deeper / shallower. Null when no selected line is a todo. */
+export function indentTodo(value: string, start: number, end: number, outdent: boolean): Edit | null {
+  const from = value.lastIndexOf("\n", start - 1) + 1;
+  let to = value.indexOf("\n", end);
+  if (to < 0) to = value.length;
+  const lines = value.slice(from, to).split("\n");
+  if (!lines.some((l) => TODO_PREFIX.test(l))) return null;
+  const delta: number[] = [];
+  const next = lines.map((l) => {
+    if (!TODO_PREFIX.test(l)) return (delta.push(0), l);
+    if (!outdent) return (delta.push(2), "  " + l);
+    const cut = /^(?: {1,2}|\t)/.exec(l)?.[0].length ?? 0;
+    delta.push(-cut);
+    return l.slice(cut);
+  });
+  const block = next.join("\n");
+  const out = value.slice(0, from) + block + value.slice(to);
+  if (start === end) {
+    const caret = Math.max(from, start + delta[0]);
+    return { value: out, start: caret, end: caret };
+  }
+  return { value: out, start: from, end: from + block.length };
+}
+
+/** Flip `[ ]` / `[x]` on one line of a note (what clicking a checkbox does). Unchanged when that line is not a todo. */
+export function toggleTodoLine(text: string, line: number): string {
+  const lines = text.split("\n");
+  const l = lines[line];
+  const m = l === undefined ? null : /^(\s*- \[)([ xX])(\].*)$/.exec(l);
+  if (!m) return text;
+  lines[line] = m[1] + (m[2] === " " ? "x" : " ") + m[3];
+  return lines.join("\n");
+}
+
 export function applyFormat(value: string, start: number, end: number, kind: FormatKind): Edit {
+  if (kind === "todo") return toggleTodo(value, start, end);
   if (kind === "ul" || kind === "ol") return toggleList(value, start, end, kind === "ol");
   const [o, c] = MARKS[kind];
   return toggleWrap(value, start, end, o, c);
@@ -87,6 +148,13 @@ export function continueList(value: string, caret: number): Edit | null {
   let to = value.indexOf("\n", caret);
   if (to < 0) to = value.length;
   const line = value.slice(from, to);
+  // a todo line: keep the nesting, start the next one unchecked; an empty todo ends the list
+  const t = /^(\s*)- \[[ xX]\] ?(.*)$/.exec(line);
+  if (t && caret >= from + t[1].length + 5) {
+    if (!t[2].trim()) return { value: value.slice(0, from) + t[1] + value.slice(to), start: from + t[1].length, end: from + t[1].length };
+    const ins = `\n${t[1]}- [ ] `;
+    return { value: value.slice(0, caret) + ins + value.slice(caret), start: caret + ins.length, end: caret + ins.length };
+  }
   const m = /^([-•] |(\d{1,3})\. )(.*)$/.exec(line);
   if (!m || caret < from + m[1].length) return null;
   if (!m[3].trim()) {

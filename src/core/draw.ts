@@ -39,6 +39,9 @@ function wave(x: number, y: number, w: number, amp: number, period: number) {
 const dot = (cx: number, cy: number, r: number) =>
   `M${r1(cx - r)},${r1(cy)}a${r},${r} 0 1,0 ${r1(2 * r)},0a${r},${r} 0 1,0 ${r1(-2 * r)},0z`;
 
+/** Outline path of a boxed area (region annotation). */
+export const regionPath = (b: Box) => roundRect(b.x, b.y, b.w, b.h, 5);
+
 /**
  * Geometry for one annotation, given its merged line boxes.
  * `gutterX` is the left edge of the text column (used by the side-line style).

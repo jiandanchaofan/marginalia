@@ -1,6 +1,10 @@
 import { Fragment } from "react";
 import { segments } from "../notes/tags";
-import { parseBlocks, parseInline, type Inline } from "../notes/format";
+import { parseBlocks, parseInline, type Inline, type TodoItem } from "../notes/format";
+import { splitTodoTokens } from "../tasks/parse";
+import { formatPlan, parsePlan, planPassed, todayStr } from "../tasks/date";
+import { shortDay, t as tr } from "../i18n";
+import type { Key } from "../i18n/zh-Hans";
 
 /** Wrap occurrences of search terms in <mark>. */
 export function Marked({ text, terms }: { text: string; terms?: string[] }) {
@@ -37,7 +41,7 @@ function Leaf({ text, ctx }: { text: string; ctx: Ctx }) {
           <button
             key={i}
             className={`tag-chip ${ctx.activeTags?.includes(s.tag) ? "on" : ""}`}
-            title={`筛选 #${s.tag}`}
+            title={tr("text.filterTag", { tag: s.tag })}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
@@ -66,18 +70,60 @@ function Inlines({ nodes, ctx }: { nodes: Inline[]; ctx: Ctx }) {
   );
 }
 
+const priorityName = (n: number) => (n > 0 ? tr(`todo.pri${n}` as Key) : "");
+
+/** One todo line: a real checkbox, the words, and the plan / deadline / priority as small chips. */
+function Todo({ item, ctx, onToggle }: { item: TodoItem; ctx: Ctx; onToggle?(line: number): void }) {
+  const t = splitTodoTokens(item.text);
+  const plan = t.plan ? parsePlan(t.plan) : null;
+  const today = todayStr();
+  const planLate = !item.done && plan && planPassed(plan, today);
+  const dueLate = !item.done && t.deadline && t.deadline < today;
+  return (
+    <li className={`note-todo ${item.done ? "done" : ""}`} style={item.indent ? { marginLeft: item.indent * 20 } : undefined}>
+      <input
+        type="checkbox"
+        className={`todo-box p${t.priority}`}
+        checked={item.done}
+        disabled={!onToggle}
+        title={onToggle ? (item.done ? tr("todo.markUndone") : tr("todo.markDone")) : undefined}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        onChange={() => onToggle?.(item.line)}
+      />
+      <span className="todo-text">
+        <Inlines nodes={parseInline(t.rest)} ctx={ctx} />
+      </span>
+      {plan && (
+        <span className={`todo-chip plan ${plan.kind} ${planLate ? "late" : ""}`} title={tr("todo.planTip", { plan: plan.raw })}>
+          {formatPlan(plan)}
+        </span>
+      )}
+      {t.deadline && (
+        <span className={`todo-chip due ${dueLate ? "late" : ""}`} title={tr("todo.dueTip", { date: t.deadline })}>
+          {tr("todo.due", { date: shortDay(t.deadline) })}
+        </span>
+      )}
+      {t.priority > 0 && <span className={`todo-chip pri p${t.priority}`}>{priorityName(t.priority)}</span>}
+    </li>
+  );
+}
+
 /** Note text: light formatting (bold / italic / underline / strikethrough / lists) plus `#tags` as clickable chips. */
 export function NoteText({
   text,
   terms,
   activeTags,
   onTag,
+  onToggle,
   className = "note-text",
 }: {
   text: string;
   terms?: string[];
   activeTags?: string[];
   onTag?(tag: string): void;
+  /** Clicking a todo's checkbox: gets the line number in the note. Omit to show the checkboxes read-only. */
+  onToggle?(line: number): void;
   className?: string;
 }) {
   const ctx: Ctx = { terms, activeTags, onTag };
@@ -86,6 +132,12 @@ export function NoteText({
       {parseBlocks(text).map((b, i) =>
         b.kind === "p" ? (
           <Inlines key={i} nodes={parseInline(b.text)} ctx={ctx} />
+        ) : b.kind === "todo" ? (
+          <ul key={i} className="note-todos">
+            {b.items.map((it) => (
+              <Todo key={it.line} item={it} ctx={ctx} onToggle={onToggle} />
+            ))}
+          </ul>
         ) : b.kind === "ul" ? (
           <ul key={i} className="note-list">
             {b.items.map((it, j) => (

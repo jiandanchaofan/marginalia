@@ -1,16 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Check, CheckSquare, Copy, Download, Hash, ImagePlus, Palette, Pencil, Search, Square, Star, StickyNote, Tag, Trash2, X } from "lucide-react";
-import { isDocNote, isFreeNote, type Annotation, type BookRecord } from "../core/types";
+import { ArrowUpRight, Check, CheckSquare, Copy, Download, FilePlus2, Hash, ImagePlus, Link2, Palette, Pencil, Search, Square, Star, StickyNote, Tag, Trash2, X } from "lucide-react";
+import { isDocNote, isFreeNote, type Annotation, type BookRecord, type NoteLink } from "../core/types";
+import { NoteLinks } from "./NoteLinks";
+import { LinkDialog } from "./LinkDialog";
+import { RelatedComposer } from "./RelatedComposer";
+import { useLinks } from "../notes/useLinks";
+import { linksOf } from "../notes/links";
+import { relationsFor } from "../notes/relations";
+import { ReflectBox } from "./ReflectBox";
+import { reflectTitleOnTick } from "../tasks/reflect";
+import { toggleTodoLine } from "../notes/edit";
 import { PALETTE, styleName, swatch } from "../core/palette";
 import { filterHits, notesStore, tagStats, useGlobalTags, useNotesVersion, type NoteHit } from "../notes/store";
 import { addTag, buildTree, hasThought, parseTags, removeTag } from "../notes/tags";
+import { deleteNotes } from "../trash/delete";
 import { EMPTY_FILTER, dayLabel, isFiltered, imageIdsOf, notesToMarkdown, safeFileName, toQuery, type NotesFilter } from "../notes/query";
 import type { Theme } from "../settings";
-import { confirmDialog, exportTextFile } from "../platform";
+import { exportTextFile } from "../platform";
 import { Marked, NoteText } from "./NoteText";
 import { TagTextarea, type TagTextareaHandle } from "./TagTextarea";
 import { FormatBar } from "./FormatBar";
+import { RegionQuote } from "./NoteImages";
 import { NoteImages } from "./NoteImages";
+import { collate, fmtDateTime, t } from "../i18n";
 
 export { EMPTY_FILTER, type NotesFilter };
 
@@ -18,7 +30,7 @@ const PAGE = 60;
 const fmtDate = (t: number) => {
   const d = new Date(t);
   const sameYear = d.getFullYear() === new Date().getFullYear();
-  return `${sameYear ? "" : `${d.getFullYear()}年`}${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return fmtDateTime(d, { year: sameYear ? undefined : "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 };
 
 interface Props {
@@ -53,6 +65,9 @@ export function NotesBrowser(props: Props) {
   const [result, setResult] = useState<{ items: NoteHit[]; total: number }>({ items: [], total: 0 });
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Map<string, NoteHit>>(new Map());
+  const links = useLinks();
+  const [linkFor, setLinkFor] = useState<NoteHit | null>(null); // "connect to existing notes" dialog
+  const [relatedFrom, setRelatedFrom] = useState<NoteHit[] | null>(null); // "new related note" dialog
   const query = useMemo(() => toQuery(filter, books), [filter, books]);
   const set = (p: Partial<NotesFilter>) => onFilter({ ...filter, ...p });
 
@@ -93,19 +108,18 @@ export function NotesBrowser(props: Props) {
   };
   const remove = async (hit: NoteHit) => {
     if (onDelete) return onDelete(hit);
-    if (!(await confirmDialog(isFreeNote(hit.note) ? "删除这条随手记？" : "删除这条笔记？原文中的标注也会一并移除。"))) return;
-    await notesStore.remove(hit.bookId, hit.note.id);
+    await deleteNotes([hit]);
   };
 
   const exportResults = async () => {
     const hits = selecting && selected.size ? [...selected.values()] : source ? filterHits(source, query) : (await notesStore.query({ ...query, limit: -1 })).items;
     if (!hits.length) return;
-    const heading = exportHeading ?? "笔记";
+    const heading = exportHeading ?? t("nb.exportDefault");
     try {
-      const ok = await exportTextFile(`${safeFileName(heading)}.md`, notesToMarkdown(hits, books, heading), imageIdsOf(hits));
-      if (ok) notify?.(`已导出 ${hits.length} 条笔记`);
+      const ok = await exportTextFile(`${safeFileName(heading)}.md`, notesToMarkdown(hits, books, heading, await relationsFor(hits)), imageIdsOf(hits));
+      if (ok) notify?.(t("nb.exported", { n: hits.length }));
     } catch (e) {
-      notify?.(`导出失败：${e}`);
+      notify?.(t("nb.exportFail", { err: String(e) }));
     }
   };
 
@@ -122,39 +136,39 @@ export function NotesBrowser(props: Props) {
   };
 
   const groupByType = filter.sort === "type" && !source;
-  const typeOf = (a: Annotation) => (a.kind === "free" ? "随手记" : a.kind === "doc" ? "阅读全局笔记" : hasThought(a.note) ? "批注笔记" : "原文摘录");
+  const typeOf = (a: Annotation) => (a.kind === "free" ? t("kind.free") : a.kind === "doc" ? t("kind.doc") : hasThought(a.note) ? t("kind.passageNote") : t("kind.excerpt"));
   let lastKind = "";
   let lastChapter = "";
 
   return (
     <div className={`notes-browser ${compact ? "compact" : ""} ${selecting ? "selecting" : ""}`}>
       <div className="nb-toolbar">
-        <label className="nb-search" title="搜索语法： #标签 · 书:标题 · 色:琥珀 · 样式:波浪线 · 批注笔记 · 阅读全局笔记 · 原文摘录 · 随手记">
+        <label className="nb-search" title={t("nb.syntaxTip")}>
           <Search size={15} />
           <input
             value={filter.q}
-            placeholder={compact ? "搜索，或输入 #标签" : "搜索笔记、#标签、书:标题…"}
+            placeholder={compact ? t("nb.searchShort") : t("nb.searchFull")}
             onChange={(e) => set({ q: e.target.value })}
             onKeyDown={(e) => e.key === "Escape" && filter.q && (e.stopPropagation(), set({ q: "" }))}
           />
           {filter.q && (
-            <button onClick={() => set({ q: "" })} title="清空">
+            <button onClick={() => set({ q: "" })} title={t("shelf.clearSearch")}>
               <X size={14} />
             </button>
           )}
         </label>
         {onSaveFilter && isFiltered(filter) && (
-          <button className="icon-btn" title="收藏当前筛选" onClick={onSaveFilter}>
+          <button className="icon-btn" title={t("nb.saveFilter")} onClick={onSaveFilter}>
             <Star size={17} />
           </button>
         )}
         {exportHeading && (
-          <button className="icon-btn" title={selecting && selected.size ? "导出所选笔记" : "导出当前结果为 Markdown"} onClick={exportResults} disabled={!result.total}>
+          <button className="icon-btn" title={selecting && selected.size ? t("nb.exportSel") : t("nb.exportMd")} onClick={exportResults} disabled={!result.total}>
             <Download size={17} />
           </button>
         )}
         {batch && !source && (
-          <button className={`icon-btn ${selecting ? "on" : ""}`} title="批量选择" onClick={() => (selecting ? exitSelect() : setSelecting(true))}>
+          <button className={`icon-btn ${selecting ? "on" : ""}`} title={t("nb.select")} onClick={() => (selecting ? exitSelect() : setSelecting(true))}>
             <CheckSquare size={17} />
           </button>
         )}
@@ -170,36 +184,36 @@ export function NotesBrowser(props: Props) {
           </button>
         ))}
         {filter.tags.length > 1 && (
-          <button className="filter-chip ghost" onClick={() => set({ tagMode: filter.tagMode === "and" ? "or" : "and" })} title="切换标签组合方式">
-            {filter.tagMode === "and" ? "同时包含" : "任一包含"}
+          <button className="filter-chip ghost" onClick={() => set({ tagMode: filter.tagMode === "and" ? "or" : "and" })} title={t("nb.tagMode")}>
+            {filter.tagMode === "and" ? t("nb.tagAnd") : t("nb.tagOr")}
           </button>
         )}
         {filter.day && (
-          <button className="filter-chip tag" onClick={() => set({ day: undefined })} title="取消日期筛选">
+          <button className="filter-chip tag" onClick={() => set({ day: undefined })} title={t("nb.clearDay")}>
             {dayLabel(filter.day)} <X size={12} />
           </button>
         )}
         {!source && (
-          <button className={`filter-chip ${filter.kind === "free" ? "on" : ""}`} onClick={() => set({ kind: filter.kind === "free" ? undefined : "free", hasText: undefined })} title="与书籍、文章无关的随手记">
-            随手记
+          <button className={`filter-chip ${filter.kind === "free" ? "on" : ""}`} onClick={() => set({ kind: filter.kind === "free" ? undefined : "free", hasText: undefined })} title={t("nb.freeTip")}>
+            {t("kind.free")}
           </button>
         )}
         <button
           className={`filter-chip ${filter.kind === "passage" && filter.hasText === true ? "on" : ""}`}
           onClick={() => (filter.kind === "passage" && filter.hasText === true ? set({ kind: undefined, hasText: undefined }) : set({ kind: "passage", hasText: true }))}
-          title="阅读时选中文字、并写了文字的笔记"
+          title={t("nb.passageTip")}
         >
-          批注笔记
+          {t("kind.passageNote")}
         </button>
-        <button className={`filter-chip ${filter.kind === "doc" ? "on" : ""}`} onClick={() => set({ kind: filter.kind === "doc" ? undefined : "doc", hasText: undefined })} title="针对整本书 / 整篇文章的笔记">
-          阅读全局笔记
+        <button className={`filter-chip ${filter.kind === "doc" ? "on" : ""}`} onClick={() => set({ kind: filter.kind === "doc" ? undefined : "doc", hasText: undefined })} title={t("nb.docTip")}>
+          {t("kind.doc")}
         </button>
         <button
           className={`filter-chip ${filter.kind === "passage" && filter.hasText === false ? "on" : ""}`}
           onClick={() => (filter.kind === "passage" && filter.hasText === false ? set({ kind: undefined, hasText: undefined }) : set({ kind: "passage", hasText: false }))}
-          title="只有高亮 / 下划线、没有写文字的原文标注"
+          title={t("nb.excerptTip")}
         >
-          原文摘录
+          {t("kind.excerpt")}
         </button>
         <span className="nb-colors">
           {PALETTE.map((p) => (
@@ -215,19 +229,19 @@ export function NotesBrowser(props: Props) {
         <span className="nb-spacer" />
         <div className="segmented small">
           <button className={filter.sort === "time" ? "on" : ""} onClick={() => set({ sort: "time" })}>
-            时间
+            {t("nb.sortTime")}
           </button>
           <button className={filter.sort === (source ? "position" : "type") ? "on" : ""} onClick={() => set({ sort: source ? "position" : "type" })}>
-            {source ? "原文顺序" : "类型"}
+            {source ? t("nb.sortOrder") : t("nb.sortType")}
           </button>
         </div>
       </div>
 
       <div className="nb-count">
-        共 {result.total} 条笔记
+        {t("nb.total", { n: result.total })}
         {(filter.q || filter.tags.length || filter.colors.length || filter.hasText !== undefined || filter.kind || filter.day) && (
           <button className="link" onClick={() => onFilter({ ...EMPTY_FILTER, bookIds: filter.bookIds, sort: filter.sort })}>
-            清除筛选
+            {t("nb.clearFilter")}
           </button>
         )}
       </div>
@@ -242,12 +256,13 @@ export function NotesBrowser(props: Props) {
           onExport={exportResults}
           onExit={exitSelect}
           onReplace={replaceSelected}
+          onRelated={() => setRelatedFrom([...selected.values()])}
           notify={notify}
         />
       )}
 
       <div className="nb-list">
-        {!result.items.length && <div className="nb-empty">{result.total === 0 && !filter.q && !filter.tags.length && !filter.day ? (source ? "还没有笔记。选中文字即可开始。" : "还没有笔记。在上方写下第一条随手记，或在阅读时选中文字。") : "没有符合条件的笔记"}</div>}
+        {!result.items.length && <div className="nb-empty">{result.total === 0 && !filter.q && !filter.tags.length && !filter.day ? (source ? t("nb.emptyBook") : t("nb.emptyAll")) : t("nb.noMatch")}</div>}
         {result.items.map((hit) => {
           const book = books.get(hit.bookId);
           let header: React.ReactNode = null;
@@ -255,7 +270,7 @@ export function NotesBrowser(props: Props) {
             lastKind = typeOf(hit.note);
             header = <div className="nb-group">{lastKind}</div>;
           } else if (source && filter.sort === "position" && chapterOf) {
-            const ch = isDocNote(hit.note) ? "阅读全局笔记" : chapterOf(hit.note.anchor.section);
+            const ch = isDocNote(hit.note) ? t("nb.docChapter") : chapterOf(hit.note.anchor.section);
             if (ch !== lastChapter) {
               lastChapter = ch;
               header = <div className="nb-group">{ch}</div>;
@@ -268,7 +283,7 @@ export function NotesBrowser(props: Props) {
                 hit={hit}
                 theme={theme}
                 bookTitle={source || isFreeNote(hit.note) ? undefined : book?.title}
-                noun={book && (book.format === "md" || book.format === "html") ? "整篇文章" : "整本书"}
+                noun={book && (book.format === "md" || book.format === "html") ? t("noun.article") : t("noun.book")}
                 terms={query.terms}
                 activeTags={filter.tags}
                 selectable={selecting}
@@ -278,16 +293,36 @@ export function NotesBrowser(props: Props) {
                 onOpen={() => onOpen(hit)}
                 onSave={(p) => save(hit, p)}
                 onDelete={() => remove(hit)}
+                links={linksOf(links, hit.note.id)}
+                books={books}
+                onOpenNote={(h) => {
+                  // In the reader's own list only notes of this document can be jumped to.
+                  if (source && !source.some((s) => s.note.id === h.note.id)) return notify?.(t("nb.elsewhere"));
+                  onOpen(h);
+                }}
+                onLink={() => setLinkFor(hit)}
+                onRelated={() => setRelatedFrom([hit])}
+                notify={notify}
               />
             </div>
           );
         })}
         {result.total > result.items.length && (
           <button className="nb-more" onClick={() => setLimit((l) => l + PAGE)}>
-            加载更多（还有 {result.total - result.items.length} 条）
+            {t("nb.more", { n: result.total - result.items.length })}
           </button>
         )}
       </div>
+      {linkFor && <LinkDialog from={linkFor} books={books} onClose={() => setLinkFor(null)} notify={(m) => notify?.(m)} />}
+      {relatedFrom && (
+        <RelatedComposer
+          sources={relatedFrom}
+          books={books}
+          onClose={() => setRelatedFrom(null)}
+          onDone={() => exitSelect()}
+          notify={(m) => notify?.(m)}
+        />
+      )}
     </div>
   );
 }
@@ -302,10 +337,12 @@ function BatchBar({
   onExport,
   onExit,
   onReplace,
+  onRelated,
   notify,
 }: {
   theme: Theme;
   onReplace(hits: NoteHit[]): void;
+  onRelated(): void;
   selected: NoteHit[];
   pageCount: number;
   onSelectPage(): void;
@@ -317,7 +354,7 @@ function BatchBar({
   const [mode, setMode] = useState<"add" | "remove" | "color" | null>(null);
   const [tagInput, setTagInput] = useState("");
   const globalTags = useGlobalTags();
-  const present = useMemo(() => [...new Set(selected.flatMap((h) => parseTags(h.note.note)))].sort((a, b) => a.localeCompare(b, "zh-CN")), [selected]);
+  const present = useMemo(() => [...new Set(selected.flatMap((h) => parseTags(h.note.note)))].sort(collate), [selected]);
   const n = selected.length;
   const now = Date.now();
 
@@ -337,45 +374,45 @@ function BatchBar({
     apply((a) => {
       const note = addTag(a.note, tag);
       return note === a.note ? a : { ...a, note };
-    }, `已为 {n} 条笔记添加 #${tag}`);
+    }, t("nb.batch.tagged", { tag }));
   };
   const removeFromAll = (tag: string) =>
     apply((a) => {
       const note = removeTag(a.note, tag);
       return note === a.note ? a : { ...a, note };
-    }, `已从 {n} 条笔记移除 #${tag}`);
-  const recolor = (color: string) => apply((a) => (a.color === color ? a : { ...a, color }), `已为 {n} 条笔记改色`);
+    }, t("nb.batch.untagged", { tag }));
+  const recolor = (color: string) => apply((a) => (a.color === color ? a : { ...a, color }), t("nb.batch.recolored"));
   const removeAll = async () => {
-    if (!(await confirmDialog(`删除选中的 ${n} 条笔记？原文中的标注也会一并移除。`))) return;
-    await notesStore.removeMany(selected);
-    notify?.(`已删除 ${n} 条笔记`);
-    onClear();
+    if (await deleteNotes(selected)) onClear();
   };
 
   return (
     <div className="batch-bar">
       <div className="batch-row">
-        <span className="batch-count">已选 {n} 条</span>
+        <span className="batch-count">{t("nb.batch.picked", { n })}</span>
         <button className="link" onClick={n >= pageCount ? onClear : onSelectPage}>
-          {n >= pageCount && n > 0 ? "取消全选" : "全选本页"}
+          {n >= pageCount && n > 0 ? t("nb.batch.unpage") : t("nb.batch.page")}
         </button>
         <span className="nb-spacer" />
         <button className={`batch-btn ${mode === "add" ? "on" : ""}`} disabled={!n} onClick={() => setMode(mode === "add" ? null : "add")}>
-          <Tag size={14} /> 加标签
+          <Tag size={14} /> {t("nb.batch.addTag")}
         </button>
         <button className={`batch-btn ${mode === "remove" ? "on" : ""}`} disabled={!present.length} onClick={() => setMode(mode === "remove" ? null : "remove")}>
-          <Hash size={14} /> 移除标签
+          <Hash size={14} /> {t("nb.batch.removeTag")}
         </button>
         <button className={`batch-btn ${mode === "color" ? "on" : ""}`} disabled={!n} onClick={() => setMode(mode === "color" ? null : "color")}>
-          <Palette size={14} /> 改颜色
+          <Palette size={14} /> {t("nb.batch.color")}
+        </button>
+        <button className="batch-btn" disabled={!n} onClick={onRelated} title={t("nb.batch.relatedTip")}>
+          <FilePlus2 size={14} /> {t("nb.batch.related")}
         </button>
         <button className="batch-btn" disabled={!n} onClick={onExport}>
-          <Download size={14} /> 导出
+          <Download size={14} /> {t("nb.batch.export")}
         </button>
         <button className="batch-btn danger" disabled={!n} onClick={removeAll}>
-          <Trash2 size={14} /> 删除
+          <Trash2 size={14} /> {t("nb.batch.delete")}
         </button>
-        <button className="batch-btn" onClick={onExit} title="退出选择">
+        <button className="batch-btn" onClick={onExit} title={t("nb.batch.exit")}>
           <X size={14} />
         </button>
       </div>
@@ -386,7 +423,7 @@ function BatchBar({
             className="batch-input"
             autoFocus
             list="batch-tags"
-            placeholder="输入标签，如 AI/AI技术（可选已有标签）"
+            placeholder={t("nb.batch.tagPlaceholder")}
             value={tagInput}
             onChange={(e) => setTagInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addToAll()}
@@ -397,13 +434,13 @@ function BatchBar({
             ))}
           </datalist>
           <button className="batch-btn primary" onClick={addToAll} disabled={!tagInput.trim()}>
-            <Check size={14} /> 添加到 {n} 条
+            <Check size={14} /> {t("nb.batch.addTo", { n })}
           </button>
         </div>
       )}
       {mode === "remove" && (
         <div className="batch-row sub wrap">
-          <span className="batch-hint">点击要移除的标签：</span>
+          <span className="batch-hint">{t("nb.batch.pickRemove")}</span>
           {present.map((t) => (
             <button key={t} className="tag-chip" onClick={() => removeFromAll(t)}>
               #{t} <X size={11} />
@@ -413,7 +450,7 @@ function BatchBar({
       )}
       {mode === "color" && (
         <div className="batch-row sub">
-          <span className="batch-hint">改为：</span>
+          <span className="batch-hint">{t("nb.batch.changeTo")}</span>
           {PALETTE.map((p) => (
             <button
               key={p.key}
@@ -443,7 +480,19 @@ function NoteItem({
   onOpen,
   onSave,
   onDelete,
+  links,
+  books,
+  onOpenNote,
+  onLink,
+  onRelated,
+  notify,
 }: {
+  links: NoteLink[];
+  books: Map<string, BookRecord>;
+  onOpenNote(hit: NoteHit): void;
+  onLink(): void;
+  onRelated(): void;
+  notify?(msg: string): void;
   hit: NoteHit;
   theme: Theme;
   bookTitle?: string;
@@ -467,6 +516,8 @@ function NoteItem({
   const free = isFreeNote(a);
   const fresh = free && Date.now() - a.createdAt < 4000;
   const [copied, setCopied] = useState(false);
+  const [showLinks, setShowLinks] = useState(false);
+  const [reflect, setReflect] = useState<string | null>(null); // a todo was just ticked: ask what it taught
   const copyQuote = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigator.clipboard?.writeText(a.anchor.exact).then(() => {
@@ -483,16 +534,18 @@ function NoteItem({
     if (draft !== a.note || draftImages.join() !== (a.images ?? []).join()) onSave({ note: draft, tags: parseTags(draft), images: draftImages });
     setEditing(false);
   };
-  const quote = free ? null : isDocNote(a) ? (
-        <button className="nb-doc-badge" onClick={selectable ? undefined : onOpen} title={selectable ? undefined : "打开整体笔记"}>
-          <StickyNote size={14} /> {noun}笔记
+  const quote = free ? null : a.anchor.region ? (
+    <RegionQuote id={a.anchor.thumb} page={a.anchor.image ? undefined : a.anchor.section} onOpen={selectable ? undefined : onOpen} />
+  ) : isDocNote(a) ? (
+        <button className="nb-doc-badge" onClick={selectable ? undefined : onOpen} title={selectable ? undefined : t("nb.openDoc")}>
+          <StickyNote size={14} /> {t("nb.docBadge", { noun })}
         </button>
       ) : (
         <div className="nb-quote-wrap">
           {/* Plain text: drag / double-click / triple-click to select part of it. Ctrl + click jumps to the source. */}
           <div
             className="nb-quote"
-            title={selectable ? undefined : "可选择部分文字；按住 Ctrl 点击回到原文"}
+            title={selectable ? undefined : t("nb.quoteTip")}
             onClick={(e) => {
               if (!selectable && (e.ctrlKey || e.metaKey)) {
                 e.stopPropagation();
@@ -520,48 +573,60 @@ function NoteItem({
       {quote}
       {editing ? (
         <div className="nb-edit" onClick={(e) => e.stopPropagation()}>
-          <TagTextarea ref={editor} className="note-editor" value={draft} onChange={setDraft} images={draftImages} onImages={setDraftImages} autoFocus placeholder="写下你的想法，输入 # 添加标签…" onSubmit={commit} onEscape={() => setEditing(false)} />
+          <TagTextarea ref={editor} className="note-editor" value={draft} onChange={setDraft} images={draftImages} onImages={setDraftImages} autoFocus placeholder={t("nb.editPlaceholder")} onSubmit={commit} onEscape={() => setEditing(false)} />
           <div className="nb-edit-actions">
-            <button className="ni-add" title="添加图片" onClick={() => editor.current?.pickImage()}>
+            <button className="ni-add" title={t("nb.addImage")} onClick={() => editor.current?.pickImage()}>
               <ImagePlus size={14} />
             </button>
             <FormatBar onFormat={(k) => editor.current?.format(k)} />
-            <span>Ctrl + Enter 保存</span>
-            <button onClick={() => setEditing(false)}>取消</button>
+            <span>{t("nb.saveHint")}</span>
+            <button onClick={() => setEditing(false)}>{t("common.cancel")}</button>
             <button className="primary" onClick={commit}>
-              <Check size={14} /> 保存
+              <Check size={14} /> {t("common.save")}
             </button>
           </div>
         </div>
       ) : (
-        a.note.trim() && <NoteText className="nb-note" text={a.note} terms={terms} activeTags={activeTags} onTag={selectable ? undefined : onTag} />
+        a.note.trim() && <NoteText className="nb-note" text={a.note} terms={terms} activeTags={activeTags} onTag={selectable ? undefined : onTag} onToggle={selectable ? undefined : (line) => (setReflect(reflectTitleOnTick(a.note, line) || null), onSave({ note: toggleTodoLine(a.note, line) }))} />
       )}
+      {!editing && reflect && <ReflectBox title={reflect} noteId={a.id} notify={notify} onClose={() => setReflect(null)} />}
       {!editing && <NoteImages ids={a.images} />}
+      {!selectable && !editing && showLinks && <NoteLinks noteId={a.id} links={links} books={books} onOpenNote={onOpenNote} onAdd={onLink} onRelated={onRelated} notify={notify} />}
       <div className="nb-meta">
         {bookTitle && <span className="nb-book">{bookTitle}</span>}
         <span>{fmtDate(a.createdAt)}</span>
-        <span>{free ? "随手记" : isDocNote(a) ? "阅读全局笔记" : styleName(a.style)}</span>
+        <span>{free ? t("kind.free") : isDocNote(a) ? t("kind.doc") : styleName(a.style)}</span>
+        {!selectable && links.length > 0 && (
+          <button className={`nb-link-chip ${showLinks ? "on" : ""}`} title={t("nb.viewLinks")} onClick={() => setShowLinks((s) => !s)}>
+            <Link2 size={12} /> {links.length}
+          </button>
+        )}
         {!selectable && (
           <span className="nb-actions">
-            {!free && !isDocNote(a) && (
-              <button title="复制整段原文（只想复制一部分：直接选中后 Ctrl + C）" onClick={copyQuote}>
+            {(links.length === 0 || !showLinks) && (
+              <button title={t("nb.linkTip")} onClick={() => (links.length ? setShowLinks(true) : setShowLinks((s) => !s))}>
+                <Link2 size={14} />
+              </button>
+            )}
+            {!free && !isDocNote(a) && !a.anchor.region && (
+              <button title={t("nb.copyQuote")} onClick={copyQuote}>
                 {copied ? <Check size={14} /> : <Copy size={14} />}
               </button>
             )}
             {!free && (
-              <button title="回到原文" onClick={onOpen}>
+              <button title={t("nb.goText")} onClick={onOpen}>
                 <ArrowUpRight size={14} />
               </button>
             )}
             {!editing && (
               <button
-                title="编辑"
+                title={t("nb.edit")}
                 onClick={startEdit}
               >
                 <Pencil size={13} />
               </button>
             )}
-            <button title="删除" className="danger" onClick={onDelete}>
+            <button title={t("card.delete")} className="danger" onClick={onDelete}>
               <Trash2 size={13} />
             </button>
           </span>

@@ -1,6 +1,18 @@
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { Card } from "./cards/Card";
+import type { CardKind } from "./cards/state";
+import { limitNativeMenu } from "./nativeMenu";
 import "./fonts.css";
 
 // No StrictMode: document mounting is an imperative, one-shot side effect (DOM built by the format loaders).
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(<App />);
+limitNativeMenu();
+const card = new URLSearchParams(location.search).get("card");
+const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
+if (card === "notes" || card === "todo") {
+  // a desktop card: its own small window, transparent around the rounded card
+  document.documentElement.classList.add("card-mode");
+  root.render(<Card kind={card as CardKind} />);
+} else {
+  root.render(<App />);
+}

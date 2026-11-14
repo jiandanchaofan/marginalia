@@ -1,6 +1,8 @@
 import type { ModePref } from "./core/layout";
 import type { HighlightStyle } from "./core/types";
 import { PALETTE, STYLES } from "./core/palette";
+import type { LangPref } from "./i18n";
+import { normalizeTag } from "./notes/tags";
 
 export type Theme = "paper" | "light" | "dark";
 export type FontChoice = "serif" | "kai" | "sans";
@@ -8,6 +10,29 @@ export type FontChoice = "serif" | "kai" | "sans";
 export type EnFontChoice = "same" | "literata" | "sourceserif" | "book" | "georgia" | "palatino" | "times" | "cambria" | "sans" | "humanist" | "verdana";
 
 export interface Settings {
+  /** Interface language; "auto" follows the system. */
+  lang?: LangPref;
+  /** Record how long each book is read (default on). */
+  readingTrack?: boolean;
+  /** Seconds without activity after which the reading timer pauses. */
+  readingIdle?: number;
+  /** First day of the week for the weekly review: 1 = Monday, 0 = Sunday. */
+  weekStart?: 0 | 1;
+  /** Remind me to write last week's review when a new week starts. */
+  weekPrompt?: boolean;
+  /** Tag (without #) written on the weekly review note. */
+  weekTag?: string;
+  /** Note review: switched on (default), notes per day (0 = no limit), tags that are not reviewed, hour a new day starts. */
+  reviewOn?: boolean;
+  reviewCap?: number;
+  reviewExclude?: string[];
+  reviewDayStart?: number;
+  /** Search the text of the books on the shelf (default on). */
+  bookSearch?: boolean;
+  /** Ask before moving a note or to-do to the recycle bin (default on). */
+  confirmDelete?: boolean;
+  /** Keyboard shortcuts the user changed, by command id ("" = none). */
+  shortcuts?: Record<string, string>;
   theme: Theme;
   font: FontChoice;
   /** English / Latin text font (Chinese characters keep using `font`). */
@@ -33,13 +58,30 @@ export interface Settings {
  */
 export function normalizeSettings(s: Settings): Settings {
   const out = { ...s };
+  if (!["auto", "zh-Hans", "zh-Hant", "en"].includes(out.lang as string)) out.lang = "auto";
+  if (![60, 90, 180].includes(out.readingIdle as number)) out.readingIdle = 90;
+  if (out.weekStart !== 0) out.weekStart = 1;
+  if (![0, 3, 5, 10, 20].includes(out.reviewCap as number)) out.reviewCap = 5;
+  if (!Array.isArray(out.reviewExclude)) out.reviewExclude = DEFAULT_SETTINGS.reviewExclude;
+  else out.reviewExclude = [...new Set(out.reviewExclude.map((t) => normalizeTag(String(t).replace(/^#/, ''))).filter(Boolean))];
+  if (!Number.isInteger(out.reviewDayStart) || (out.reviewDayStart as number) < 0 || (out.reviewDayStart as number) > 8) out.reviewDayStart = 4;
+  if (out.confirmDelete !== false) out.confirmDelete = true;
+  if (out.bookSearch !== false) out.bookSearch = true;
+  if (out.shortcuts && typeof out.shortcuts === "object") out.shortcuts = Object.fromEntries(Object.entries(out.shortcuts).filter(([k, v]) => typeof k === "string" && typeof v === "string"));
+  else out.shortcuts = {};
+  out.weekTag = normalizeTag(String(out.weekTag ?? "").replace(/^#/, "")) || DEFAULT_WEEK_TAG;
   out.zoom = clampZoom(out.zoom);
   out.libZoom = clampZoom(out.libZoom);
+  // 沉浸 (no margin notes at all) is a temporary mode: a new session starts with 自动, so notes never seem to vanish.
+  if (out.layout === "immersive") out.layout = DEFAULT_SETTINGS.layout;
   if (!PALETTE.some((p) => p.key === out.lastColor)) out.lastColor = DEFAULT_SETTINGS.lastColor;
   if (!out.fontEnUser || !EN_FONTS.some((f) => f.key === out.fontEn)) out.fontEn = DEFAULT_SETTINGS.fontEn;
   if (out.lastStyle !== "none" && !STYLES.some((x) => x.key === out.lastStyle)) out.lastStyle = DEFAULT_SETTINGS.lastStyle;
   return out;
 }
+
+/** The tag a weekly review gets unless the user picks another one. */
+export const DEFAULT_WEEK_TAG = "Lifelog/WeeklyReview";
 
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 2.5;
@@ -51,6 +93,16 @@ export const clampZoom = (z: unknown) => {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
+  lang: "auto",
+  readingTrack: true,
+  readingIdle: 90,
+  weekStart: 1,
+  weekPrompt: true,
+  weekTag: DEFAULT_WEEK_TAG,
+  reviewOn: true,
+  reviewCap: 5,
+  reviewExclude: ["Status/待办复盘", DEFAULT_WEEK_TAG],
+  reviewDayStart: 4,
   theme: "paper",
   font: "serif",
   fontEn: "sourceserif",
@@ -109,4 +161,15 @@ export const EN_FONTS: { key: EnFontChoice; label: string; note: string; stack: 
 export function bodyFont(s: Pick<Settings, "font" | "fontEn">): string {
   const en = EN_FONTS.find((f) => f.key === s.fontEn)?.stack;
   return en ? `${en}, ${FONT_STACKS[s.font]}` : FONT_STACKS[s.font];
+}
+
+/**
+ * First-launch zoom from the usable screen size (CSS pixels, so Windows display scaling is already in it): the pages
+ * are laid out around a 1180px column, so a wide screen gets a larger scale to leave only a modest margin at the sides.
+ * 1.0 up to about a 1366px-wide screen, 1.3 on 1920, at most 1.6.
+ */
+export function autoZoomFor(screenWidth: number, screenHeight: number): number {
+  if (!screenWidth || screenHeight < 700) return 1;
+  const z = (screenWidth * 0.86) / 1244;
+  return clampZoom(Math.max(1, Math.min(1.6, Math.round(z * 10) / 10)));
 }

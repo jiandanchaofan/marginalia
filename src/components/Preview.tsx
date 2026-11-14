@@ -3,6 +3,8 @@ import { ArrowLeft, BookOpen, ChevronLeft, ChevronRight, EyeOff, Globe, Loader2,
 import type { FeedItem } from "../feeds/api";
 import { extractReadable, getPage, type Readable } from "../web/clip";
 import { openWebWindow } from "../platform";
+import { fmtDate, t } from "../i18n";
+import { localizeErr } from "../i18n/errors";
 
 interface Props {
   item: FeedItem;
@@ -87,7 +89,7 @@ export function Preview(p: Props) {
     } else if (/^https?:/i.test(href)) setStack((s) => [...s, href]);
   };
 
-  const published = state.status === "ok" && state.meta.publishedAt ? new Date(state.meta.publishedAt).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" }) : "";
+  const published = state.status === "ok" && state.meta.publishedAt ? fmtDate(state.meta.publishedAt, { year: "numeric", month: "long", day: "numeric" }) : "";
 
   return (
     <div className="preview-backdrop" onMouseDown={p.onClose}>
@@ -95,16 +97,16 @@ export function Preview(p: Props) {
         <header className="pv-bar">
           {atRoot ? (
             <div className="pv-nav">
-              <button className="icon-btn" title="上一篇（←）" disabled={!p.hasPrev} onClick={p.onPrev}>
+              <button className="icon-btn" title={t("pv.prev")} disabled={!p.hasPrev} onClick={p.onPrev}>
                 <ChevronLeft size={18} />
               </button>
-              <button className="icon-btn" title="下一篇（→）" disabled={!p.hasNext} onClick={p.onNext}>
+              <button className="icon-btn" title={t("pv.next")} disabled={!p.hasNext} onClick={p.onNext}>
                 <ChevronRight size={18} />
               </button>
             </div>
           ) : (
             <button className="fi-btn" onClick={() => setStack((s) => s.slice(0, -1))}>
-              <ArrowLeft size={14} /> 返回
+              <ArrowLeft size={14} /> {t("pv.back")}
             </button>
           )}
           <div className="pv-where" title={url}>
@@ -115,23 +117,23 @@ export function Preview(p: Props) {
           {atRoot &&
             (p.saved ? (
               <button className="fi-btn primary ghost" onClick={p.onOpenSaved}>
-                <BookOpen size={14} /> 已保存 · 打开精读
+                <BookOpen size={14} /> {t("ib.savedOpen")}
               </button>
             ) : (
-              <button className="fi-btn primary" disabled={p.saving} onClick={p.onSave} title="保存精读（S）">
+              <button className="fi-btn primary" disabled={p.saving} onClick={p.onSave} title={t("pv.saveTip")}>
                 {p.saving ? <Loader2 size={14} className="spin" /> : <BookOpen size={14} />}
-                {p.saving ? "保存中…" : "保存精读"}
+                {p.saving ? t("ib.saving") : t("ib.save")}
               </button>
             ))}
           {atRoot && !p.saved && p.item.status !== "dismissed" && (
-            <button className="fi-btn" onClick={p.onDismiss} title="忽略这篇，看下一篇">
-              <EyeOff size={14} /> 忽略
+            <button className="fi-btn" onClick={p.onDismiss} title={t("pv.dismissTip")}>
+              <EyeOff size={14} /> {t("ib.dismiss")}
             </button>
           )}
-          <button className="fi-btn" onClick={() => openWebWindow(url, state.status === "ok" ? state.meta.title : p.item.title)} title="在应用内的网页窗口中查看原始页面">
-            <Globe size={14} /> 原始网页
+          <button className="fi-btn" onClick={() => openWebWindow(url, state.status === "ok" ? state.meta.title : p.item.title)} title={t("pv.originalTip")}>
+            <Globe size={14} /> {t("pv.original")}
           </button>
-          <button className="icon-btn" title="关闭（Esc）" onClick={p.onClose}>
+          <button className="icon-btn" title={t("pv.closeEsc")} onClick={p.onClose}>
             <X size={18} />
           </button>
         </header>
@@ -139,14 +141,14 @@ export function Preview(p: Props) {
         <div className="pv-scroll" ref={scroller}>
           {state.status === "loading" && (
             <div className="pv-loading">
-              <Loader2 size={20} className="spin" /> 正在加载正文…
+              <Loader2 size={20} className="spin" /> {t("pv.loading")}
             </div>
           )}
           {state.status === "error" && (
             <div className="pv-error">
-              <p>{state.error}</p>
+              <p>{localizeErr(state.error)}</p>
               <button className="primary-btn" onClick={() => openWebWindow(url, p.item.title)}>
-                <Globe size={16} /> 在应用内查看原始网页
+                <Globe size={16} /> {t("pv.viewOriginal")}
               </button>
             </div>
           )}

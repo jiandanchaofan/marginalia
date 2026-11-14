@@ -1,5 +1,6 @@
 import { fetchPage } from "../platform";
 import { feedsApi, type FetchResult, type Source } from "./api";
+import { t } from "../i18n";
 
 export interface Discovered {
   input: string;
@@ -44,7 +45,7 @@ export async function discover(raw: string): Promise<Discovered> {
   const input = withScheme(raw);
   const u = new URL(input);
   if (u.hostname === "mp.weixin.qq.com" && !u.pathname.startsWith("/mp/appmsgalbum")) {
-    throw new Error("这是单篇公众号文章。订阅公众号请粘贴它的「合集」链接；单篇可用「探索」页的「添加网文」。");
+    throw new Error(t("err.wechatSingle"));
   }
 
   const direct = await tryFeed(input);
@@ -75,5 +76,5 @@ export async function discover(raw: string): Promise<Discovered> {
     const r = await tryFeed(c);
     if (r && r.items.length) return describe(input, c, r, pageTitle);
   }
-  throw new Error("没有找到这个网站的订阅源（RSS / Atom）。");
+  throw new Error(t("err.noFeed"));
 }

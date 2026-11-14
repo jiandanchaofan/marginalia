@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 /**
  * Site adapters: normalise a fetched page before Readability runs, and collect metadata
  * that Readability doesn't see (WeChat keeps the author and publish time outside the article).
@@ -90,7 +91,7 @@ export function prepareDocument(doc: Document, url: string): SiteMeta {
     const ct = /\bvar\s+ct\s*=\s*["']?(\d{9,11})/.exec(scripts)?.[1] ?? /create_time\s*[:=]\s*["']?(\d{9,11})/.exec(scripts)?.[1];
     meta.title = title || meta.title;
     meta.author = author || account || meta.author;
-    meta.siteName = account ? `公众号 · ${account}` : "微信公众号";
+    meta.siteName = account ? t("adapter.wechatNamed", { name: account }) : t("adapter.wechat");
     if (ct) meta.publishedAt = Number(ct) * 1000;
   }
   return meta;

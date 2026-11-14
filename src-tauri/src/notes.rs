@@ -13,7 +13,7 @@ use std::sync::Mutex;
 
 pub struct Db(pub Mutex<Connection>);
 
-const SCHEMA: &str = "
+pub(crate) const SCHEMA: &str = "
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
@@ -43,7 +43,191 @@ CREATE TABLE IF NOT EXISTS note_tags(
   PRIMARY KEY(note_id, tag)
 );
 CREATE INDEX IF NOT EXISTS note_tags_tag ON note_tags(tag);
-CREATE TABLE IF NOT EXISTS tag_meta(tag TEXT PRIMARY KEY, pinned INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS tag_meta(tag TEXT PRIMARY KEY, pinned INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS note_links(
+  id TEXT PRIMARY KEY,
+  a TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  b TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  label TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL DEFAULT '',
+  style TEXT NOT NULL DEFAULT '',
+  side_a TEXT NOT NULL DEFAULT '',
+  side_b TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS note_links_a ON note_links(a);
+CREATE INDEX IF NOT EXISTS note_links_b ON note_links(b);
+CREATE TABLE IF NOT EXISTS graph_pos(
+  note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+  x REAL NOT NULL,
+  y REAL NOT NULL,
+  w REAL NOT NULL DEFAULT 0,
+  h REAL NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS tasks(
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  done INTEGER NOT NULL DEFAULT 0,
+  done_at INTEGER,
+  priority INTEGER NOT NULL DEFAULT 0,
+  plan TEXT NOT NULL DEFAULT '',
+  plan_kind TEXT NOT NULL DEFAULT '',
+  plan_start TEXT NOT NULL DEFAULT '',
+  plan_end TEXT NOT NULL DEFAULT '',
+  deadline TEXT NOT NULL DEFAULT '',
+  tags TEXT NOT NULL DEFAULT '',
+  own_tags TEXT NOT NULL DEFAULT '',
+  parent_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
+  sort INTEGER NOT NULL DEFAULT 0,
+  source_note_id TEXT REFERENCES notes(id) ON DELETE CASCADE,
+  source_line TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS tasks_note ON tasks(source_note_id);
+CREATE INDEX IF NOT EXISTS tasks_parent ON tasks(parent_id);
+CREATE TABLE IF NOT EXISTS goals(
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL DEFAULT 'month',
+  period TEXT NOT NULL DEFAULT '',
+  parent_id TEXT REFERENCES goals(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'doing',
+  mode TEXT NOT NULL DEFAULT 'auto',
+  percent INTEGER NOT NULL DEFAULT 0,
+  sort INTEGER NOT NULL DEFAULT 0,
+  closed_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS task_goals(
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+  PRIMARY KEY(task_id, goal_id)
+);
+CREATE INDEX IF NOT EXISTS task_goals_goal ON task_goals(goal_id);
+CREATE TABLE IF NOT EXISTS review_items(
+  note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+  level INTEGER NOT NULL DEFAULT 0,
+  due TEXT NOT NULL,
+  last TEXT NOT NULL DEFAULT '',
+  reps INTEGER NOT NULL DEFAULT 0,
+  lapses INTEGER NOT NULL DEFAULT 0,
+  suspended INTEGER NOT NULL DEFAULT 0,
+  added TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS review_items_due ON review_items(due);
+CREATE TABLE IF NOT EXISTS trash(
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  deleted_at INTEGER NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  payload TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS trash_deleted ON trash(deleted_at);
+CREATE TABLE IF NOT EXISTS review_log(
+  day TEXT NOT NULL,
+  note_id TEXT NOT NULL,
+  rating INTEGER NOT NULL,
+  PRIMARY KEY(day, note_id)
+);
+CREATE TABLE IF NOT EXISTS goal_snaps(
+  day TEXT NOT NULL,
+  goal_id TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+  percent INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(day, goal_id)
+);
+CREATE TABLE IF NOT EXISTS reading_days(
+  day TEXT NOT NULL,
+  book_id TEXT NOT NULL,
+  secs INTEGER NOT NULL DEFAULT 0,
+  p0 REAL NOT NULL DEFAULT 0,
+  p1 REAL NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(day, book_id)
+);
+-- Reading time other devices recorded (each device only ever writes its own rows, so the totals are the sum of all rows).
+CREATE TABLE IF NOT EXISTS reading_remote(
+  day TEXT NOT NULL,
+  book_id TEXT NOT NULL,
+  device TEXT NOT NULL,
+  secs INTEGER NOT NULL DEFAULT 0,
+  p0 REAL NOT NULL DEFAULT 0,
+  p1 REAL NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(day, book_id, device)
+);
+-- The shelf's books, one row each (the description of a book; the files stay under books/).
+CREATE TABLE IF NOT EXISTS books(
+  id TEXT PRIMARY KEY,
+  data TEXT NOT NULL,
+  updated_at INTEGER NOT NULL DEFAULT 0
+);
+-- What came from other devices (kind, id, the time it was written there), so it is not sent straight back to them.
+CREATE TABLE IF NOT EXISTS sync_known(
+  kind TEXT NOT NULL,
+  id TEXT NOT NULL,
+  stamp INTEGER NOT NULL,
+  PRIMARY KEY(kind, id)
+);
+-- Which files (pictures, books) this device has put in the cloud, or asked for and not found (and when).
+CREATE TABLE IF NOT EXISTS sync_files(
+  kind TEXT NOT NULL,
+  id TEXT NOT NULL,
+  state TEXT NOT NULL,
+  at INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(kind, id)
+);
+-- What was deleted and when (for syncing between devices: another device must hear that a record is gone, not just that it is missing).
+-- Triggers write it, so every way of deleting is covered, cascades included; writing a record again takes its tombstone away.
+CREATE TABLE IF NOT EXISTS tombstones(
+  kind TEXT NOT NULL,
+  id TEXT NOT NULL,
+  deleted_at INTEGER NOT NULL,
+  PRIMARY KEY(kind, id)
+);
+CREATE TRIGGER IF NOT EXISTS notes_tomb AFTER DELETE ON notes BEGIN
+  INSERT OR REPLACE INTO tombstones(kind, id, deleted_at) VALUES('note', OLD.id, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
+END;
+CREATE TRIGGER IF NOT EXISTS notes_untomb AFTER INSERT ON notes BEGIN
+  DELETE FROM tombstones WHERE kind = 'note' AND id = NEW.id;
+END;
+CREATE TRIGGER IF NOT EXISTS tasks_tomb AFTER DELETE ON tasks BEGIN
+  INSERT OR REPLACE INTO tombstones(kind, id, deleted_at) VALUES('task', OLD.id, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
+END;
+CREATE TRIGGER IF NOT EXISTS tasks_untomb AFTER INSERT ON tasks BEGIN
+  DELETE FROM tombstones WHERE kind = 'task' AND id = NEW.id;
+END;
+CREATE TRIGGER IF NOT EXISTS goals_tomb AFTER DELETE ON goals BEGIN
+  INSERT OR REPLACE INTO tombstones(kind, id, deleted_at) VALUES('goal', OLD.id, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
+END;
+CREATE TRIGGER IF NOT EXISTS goals_untomb AFTER INSERT ON goals BEGIN
+  DELETE FROM tombstones WHERE kind = 'goal' AND id = NEW.id;
+END;
+CREATE TRIGGER IF NOT EXISTS note_links_tomb AFTER DELETE ON note_links BEGIN
+  INSERT OR REPLACE INTO tombstones(kind, id, deleted_at) VALUES('link', OLD.id, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
+END;
+CREATE TRIGGER IF NOT EXISTS note_links_untomb AFTER INSERT ON note_links BEGIN
+  DELETE FROM tombstones WHERE kind = 'link' AND id = NEW.id;
+END;
+CREATE TRIGGER IF NOT EXISTS trash_tomb AFTER DELETE ON trash BEGIN
+  INSERT OR REPLACE INTO tombstones(kind, id, deleted_at) VALUES('trash', OLD.id, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
+END;
+CREATE TRIGGER IF NOT EXISTS trash_untomb AFTER INSERT ON trash BEGIN
+  DELETE FROM tombstones WHERE kind = 'trash' AND id = NEW.id;
+END;
+CREATE TRIGGER IF NOT EXISTS books_tomb AFTER DELETE ON books BEGIN
+  INSERT OR REPLACE INTO tombstones(kind, id, deleted_at) VALUES('book', OLD.id, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER));
+END;
+CREATE TRIGGER IF NOT EXISTS books_untomb AFTER INSERT ON books BEGIN
+  DELETE FROM tombstones WHERE kind = 'book' AND id = NEW.id;
+END;
 CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(quote, note, tokenize = 'trigram');
 ";
 
@@ -223,7 +407,7 @@ pub struct Filter {
 /// To change the layout in a later release: bump this, add an `if ver < N { ... }` step to `upgrade`
 /// (additive changes only: new tables / columns with defaults), and never edit or drop old data in place.
 /// Databases from before versioning report 0 and are brought up to date by the idempotent steps.
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 pub fn open(dir: &Path) -> rusqlite::Result<Connection> {
     let conn = Connection::open(dir.join("reader.db"))?;
@@ -252,6 +436,8 @@ pub fn open(dir: &Path) -> rusqlite::Result<Connection> {
         conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     }
     migrate_json(&conn, dir);
+    let mut conn = conn;
+    crate::library::migrate(&mut conn, dir);
     Ok(conn)
 }
 
@@ -273,7 +459,43 @@ fn upgrade(conn: &Connection) -> rusqlite::Result<()> {
     if !has_images {
         conn.execute("ALTER TABLE notes ADD COLUMN images TEXT NOT NULL DEFAULT ''", [])?;
     }
+    let link_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(note_links)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .filter_map(Result::ok)
+        .collect();
+    for col in ["color", "style", "side_a", "side_b"] {
+        if !link_cols.is_empty() && !link_cols.iter().any(|c| c == col) {
+            conn.execute(&format!("ALTER TABLE note_links ADD COLUMN {col} TEXT NOT NULL DEFAULT ''"), [])?;
+        }
+    }
+    let pos_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(graph_pos)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .filter_map(Result::ok)
+        .collect();
+    for col in ["w", "h"] {
+        if !pos_cols.is_empty() && !pos_cols.iter().any(|c| c == col) {
+            conn.execute(&format!("ALTER TABLE graph_pos ADD COLUMN {col} REAL NOT NULL DEFAULT 0"), [])?;
+        }
+    }
+    // when each of these was last written, for syncing (older rows keep 0: older than anything written since)
+    for table in ["review_items", "tag_meta", "graph_pos", "reading_days", "goal_snaps"] {
+        let cols: Vec<String> = conn
+            .prepare(&format!("PRAGMA table_info({table})"))?
+            .query_map([], |r| r.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .collect();
+        if !cols.is_empty() && !cols.iter().any(|c| c == "updated_at") {
+            conn.execute(&format!("ALTER TABLE {table} ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0"), [])?;
+        }
+    }
     Ok(())
+}
+
+#[cfg(test)]
+pub fn upgrade_for_test(conn: &Connection) {
+    upgrade(conn).unwrap();
 }
 
 /// One-time import of the v0.1 per-book JSON files.
@@ -311,7 +533,7 @@ fn norm_kind(k: &str) -> &'static str {
     }
 }
 
-fn upsert(conn: &Connection, book_id: &str, n: &Note) -> rusqlite::Result<()> {
+pub(crate) fn upsert(conn: &Connection, book_id: &str, n: &Note) -> rusqlite::Result<()> {
     let section = n.anchor.get("section").and_then(Value::as_i64).unwrap_or(0);
     let pos = n.anchor.get("start").and_then(Value::as_i64).unwrap_or(0);
     let quote = n.anchor.get("exact").and_then(Value::as_str).unwrap_or("");
@@ -352,7 +574,7 @@ fn upsert(conn: &Connection, book_id: &str, n: &Note) -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn delete_ids(conn: &Connection, ids: &[String]) -> rusqlite::Result<()> {
+pub(crate) fn delete_ids(conn: &Connection, ids: &[String]) -> rusqlite::Result<()> {
     for id in ids {
         conn.execute("DELETE FROM notes_fts WHERE rowid = (SELECT rowid FROM notes WHERE id = ?1)", [id])?;
         conn.execute("DELETE FROM notes WHERE id = ?1", [id])?;
@@ -383,6 +605,15 @@ fn row_hit(r: &rusqlite::Row) -> rusqlite::Result<Hit> {
             tags: tags.map(|s| s.split('\u{1f}').map(String::from).collect()).unwrap_or_default(),
         },
     })
+}
+
+/// Notes written at or after `since` (ms), for syncing.
+pub(crate) fn notes_changed_since(conn: &Connection, since: i64) -> rusqlite::Result<Vec<Hit>> {
+    notes_where(conn, "n.updated_at > ?", vec![Sql::Integer(since)], "n.updated_at, n.id", -1, 0)
+}
+
+pub(crate) fn note_by_id(conn: &Connection, id: &str) -> rusqlite::Result<Option<Hit>> {
+    Ok(notes_where(conn, "n.id = ?", vec![Sql::Text(id.to_string())], "n.id", 1, 0)?.into_iter().next())
 }
 
 fn notes_where(conn: &Connection, sql_where: &str, args: Vec<Sql>, order: &str, limit: i64, offset: i64) -> rusqlite::Result<Vec<Hit>> {
@@ -440,6 +671,152 @@ pub fn note_update(db: tauri::State<Db>, book_id: String, note: Note) -> R<()> {
 pub fn note_delete(db: tauri::State<Db>, id: String) -> R<()> {
     let conn = db.0.lock().map_err(e)?;
     delete_ids(&conn, &[id]).map_err(e)
+}
+
+// ---------------------------------------------------------------- note links
+
+/// A relation between two notes (undirected; `a` < `b`), with a free-text description of how they relate.
+/// Any note can have any number of links, and two notes can be linked more than once.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Link {
+    pub id: String,
+    pub a: String,
+    pub b: String,
+    #[serde(default)]
+    pub label: String,
+    /// Palette key of the line colour in the relation graph ("" = default).
+    #[serde(default)]
+    pub color: String,
+    /// "solid" | "dashed" | "dotted" ("" = solid).
+    #[serde(default)]
+    pub style: String,
+    /// Where the line leaves card `a` / card `b`: "t" | "r" | "b" | "l" (top, right, bottom, left), "" = automatic.
+    #[serde(default)]
+    pub side_a: String,
+    #[serde(default)]
+    pub side_b: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphPos {
+    pub note_id: String,
+    pub x: f64,
+    pub y: f64,
+    /// Size of the card in the graph (0 = the default size).
+    #[serde(default)]
+    pub w: f64,
+    #[serde(default)]
+    pub h: f64,
+}
+
+fn norm_side(s: &str) -> &'static str {
+    match s {
+        "t" => "t",
+        "r" => "r",
+        "b" => "b",
+        "l" => "l",
+        _ => "",
+    }
+}
+
+fn norm_link_style(s: &str) -> &'static str {
+    match s {
+        "dashed" => "dashed",
+        "dotted" => "dotted",
+        _ => "",
+    }
+}
+
+pub(crate) fn link_put_one(conn: &Connection, l: &Link) -> Result<(), String> {
+    if l.a == l.b {
+        return Err("不能把笔记连接到它自己".into());
+    }
+    // the pair is stored in a stable order; the sides follow their cards
+    let (a, b, side_a, side_b) = if l.a < l.b { (&l.a, &l.b, &l.side_a, &l.side_b) } else { (&l.b, &l.a, &l.side_b, &l.side_a) };
+    let label = l.label.trim();
+    conn.execute(
+        "INSERT INTO note_links(id, a, b, label, color, style, side_a, side_b, created_at, updated_at) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+         ON CONFLICT(id) DO UPDATE SET a = excluded.a, b = excluded.b, label = excluded.label, color = excluded.color,
+           style = excluded.style, side_a = excluded.side_a, side_b = excluded.side_b, updated_at = excluded.updated_at",
+        params![l.id, a, b, label, l.color.trim(), norm_link_style(&l.style), norm_side(side_a), norm_side(side_b), l.created_at, l.updated_at],
+    )
+    .map_err(|err| if err.to_string().contains("FOREIGN KEY") { "要连接的笔记不存在".to_string() } else { err.to_string() })?;
+    Ok(())
+}
+
+pub(crate) fn links_list(conn: &Connection) -> rusqlite::Result<Vec<Link>> {
+    let mut stmt = conn.prepare("SELECT id, a, b, label, color, style, side_a, side_b, created_at, updated_at FROM note_links ORDER BY created_at, id")?;
+    let rows = stmt.query_map([], |r| {
+        Ok(Link { id: r.get(0)?, a: r.get(1)?, b: r.get(2)?, label: r.get(3)?, color: r.get(4)?, style: r.get(5)?, side_a: r.get(6)?, side_b: r.get(7)?, created_at: r.get(8)?, updated_at: r.get(9)? })
+    })?;
+    rows.collect()
+}
+
+#[tauri::command]
+pub fn links_all(db: tauri::State<Db>) -> R<Vec<Link>> {
+    let conn = db.0.lock().map_err(e)?;
+    links_list(&conn).map_err(e)
+}
+
+/// Create or update links (all or none).
+#[tauri::command]
+pub fn links_put(db: tauri::State<Db>, links: Vec<Link>) -> R<()> {
+    let mut conn = db.0.lock().map_err(e)?;
+    let tx = conn.transaction().map_err(e)?;
+    for l in &links {
+        link_put_one(&tx, l)?;
+    }
+    tx.commit().map_err(e)
+}
+
+#[tauri::command]
+pub fn link_delete(db: tauri::State<Db>, id: String) -> R<()> {
+    let conn = db.0.lock().map_err(e)?;
+    conn.execute("DELETE FROM note_links WHERE id = ?1", [id]).map_err(e)?;
+    Ok(())
+}
+
+/// Notes by id (any book), in the order asked for; unknown ids are skipped.
+#[tauri::command]
+pub fn notes_by_ids(db: tauri::State<Db>, ids: Vec<String>) -> R<Vec<Hit>> {
+    let conn = db.0.lock().map_err(e)?;
+    let mut out = Vec::with_capacity(ids.len());
+    for chunk in ids.chunks(400) {
+        let marks = vec!["?"; chunk.len()].join(",");
+        let hits = notes_where(&conn, &format!("n.id IN ({marks})"), chunk.iter().cloned().map(Sql::Text).collect(), "n.created_at", -1, 0).map_err(e)?;
+        out.extend(hits);
+    }
+    let rank: HashMap<&str, usize> = ids.iter().enumerate().map(|(i, id)| (id.as_str(), i)).collect();
+    out.sort_by_key(|h| rank.get(h.note.id.as_str()).copied().unwrap_or(usize::MAX));
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn graph_pos_all(db: tauri::State<Db>) -> R<Vec<GraphPos>> {
+    let conn = db.0.lock().map_err(e)?;
+    let mut stmt = conn.prepare("SELECT note_id, x, y, w, h FROM graph_pos").map_err(e)?;
+    let rows = stmt.query_map([], |r| Ok(GraphPos { note_id: r.get(0)?, x: r.get(1)?, y: r.get(2)?, w: r.get(3)?, h: r.get(4)? })).map_err(e)?;
+    rows.collect::<Result<_, _>>().map_err(e)
+}
+
+#[tauri::command]
+pub fn graph_pos_put(db: tauri::State<Db>, positions: Vec<GraphPos>) -> R<()> {
+    let mut conn = db.0.lock().map_err(e)?;
+    let tx = conn.transaction().map_err(e)?;
+    for p in &positions {
+        // positions of notes that no longer exist are simply dropped
+        tx.execute(
+            "INSERT INTO graph_pos(note_id, x, y, w, h, updated_at) SELECT ?1, ?2, ?3, ?4, ?5, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) WHERE EXISTS (SELECT 1 FROM notes WHERE id = ?1)
+             ON CONFLICT(note_id) DO UPDATE SET x = excluded.x, y = excluded.y, w = excluded.w, h = excluded.h, updated_at = excluded.updated_at",
+            params![p.note_id, p.x, p.y, p.w.max(0.0), p.h.max(0.0)],
+        )
+        .map_err(e)?;
+    }
+    tx.commit().map_err(e)
 }
 
 pub fn delete_book_notes(db: &Db, book_id: &str) -> R<()> {
@@ -541,7 +918,7 @@ fn order_clause(sort: Option<&str>, seed: Option<i64>) -> String {
 }
 
 #[tauri::command]
-pub fn tags_list(db: tauri::State<Db>, book_id: Option<String>) -> R<Vec<TagInfo>> {
+pub fn tags_list(db: tauri::State<Db>, book_id: Option<String>, aliases: Option<Vec<(String, String)>>) -> R<Vec<TagInfo>> {
     let conn = db.0.lock().map_err(e)?;
     let (sql, args): (&str, Vec<Sql>) = match &book_id {
         Some(b) => (
@@ -556,19 +933,7 @@ pub fn tags_list(db: tauri::State<Db>, book_id: Option<String>) -> R<Vec<TagInfo
         .map_err(e)?
         .collect::<Result<_, _>>()
         .map_err(e)?;
-    let mut all: BTreeMap<String, HashSet<String>> = BTreeMap::new();
-    let mut own: HashMap<String, usize> = HashMap::new();
-    for (tag, note) in rows {
-        *own.entry(tag.clone()).or_default() += 1;
-        let mut prefix = String::new();
-        for seg in tag.split('/') {
-            if !prefix.is_empty() {
-                prefix.push('/');
-            }
-            prefix.push_str(seg);
-            all.entry(prefix.clone()).or_default().insert(note.clone());
-        }
-    }
+    let (all, own) = count_tags(rows, &aliases.unwrap_or_default().into_iter().collect());
     let pinned: HashSet<String> = {
         let mut stmt = conn.prepare("SELECT tag FROM tag_meta WHERE pinned = 1").map_err(e)?;
         let rows = stmt.query_map([], |r| r.get(0)).map_err(e)?;
@@ -583,6 +948,26 @@ pub fn tags_list(db: tauri::State<Db>, book_id: Option<String>) -> R<Vec<TagInfo
             tag,
         })
         .collect())
+}
+
+/// Notes per tag (every tag counts the notes under it and under its children) and notes carrying exactly that tag.
+/// `aliases` maps tags written differently (another language, an older setting) to the one they are shown as.
+fn count_tags(rows: Vec<(String, String)>, aliases: &HashMap<String, String>) -> (BTreeMap<String, HashSet<String>>, HashMap<String, usize>) {
+    let mut all: BTreeMap<String, HashSet<String>> = BTreeMap::new();
+    let mut own: HashMap<String, usize> = HashMap::new();
+    for (tag, note) in rows {
+        let tag = aliases.get(&tag).cloned().unwrap_or(tag);
+        *own.entry(tag.clone()).or_default() += 1;
+        let mut prefix = String::new();
+        for seg in tag.split('/') {
+            if !prefix.is_empty() {
+                prefix.push('/');
+            }
+            prefix.push_str(seg);
+            all.entry(prefix.clone()).or_default().insert(note.clone());
+        }
+    }
+    (all, own)
 }
 
 /// Rename (or merge, when `to` already exists) a tag and all its descendants, across every book.
@@ -623,7 +1008,7 @@ fn retag(db: &Db, from: &str, to: Option<&str>) -> R<usize> {
     // Carry pin state over to the new name.
     if let Some(to) = to {
         tx.execute(
-            "INSERT OR REPLACE INTO tag_meta(tag, pinned) SELECT ?2, pinned FROM tag_meta WHERE tag = ?1",
+            "INSERT OR REPLACE INTO tag_meta(tag, pinned, updated_at) SELECT ?2, pinned, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) FROM tag_meta WHERE tag = ?1",
             params![from, to],
         )
         .map_err(e)?;
@@ -637,7 +1022,7 @@ fn retag(db: &Db, from: &str, to: Option<&str>) -> R<usize> {
 pub fn tag_pin(db: tauri::State<Db>, tag: String, pinned: bool) -> R<()> {
     let conn = db.0.lock().map_err(e)?;
     conn.execute(
-        "INSERT INTO tag_meta(tag, pinned) VALUES(?1, ?2) ON CONFLICT(tag) DO UPDATE SET pinned = excluded.pinned",
+        "INSERT INTO tag_meta(tag, pinned, updated_at) VALUES(?1, ?2, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)) ON CONFLICT(tag) DO UPDATE SET pinned = excluded.pinned, updated_at = excluded.updated_at",
         params![tag, pinned],
     )
     .map_err(e)?;
@@ -708,6 +1093,70 @@ mod tests {
         assert_eq!(rewrite_tags("#金句 好句子", "金句", None), "好句子");
     }
 
+    /// Rough timings on a big library. `cargo test --release scale -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn scale_notes() {
+        use std::time::Instant;
+        let path = std::env::temp_dir().join("marginalia-scale.db");
+        let _ = std::fs::remove_file(&path);
+        let mut conn = Connection::open(&path).unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;").unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        let n_notes: usize = std::env::var("SCALE_N").ok().and_then(|v| v.parse().ok()).unwrap_or(20_000);
+        let text = "读书不是为了记住，而是为了改变看事情的方式。慢读比多读更有用，把每一次阅读都写成一条自己的话。";
+        let t0 = Instant::now();
+        let tx = conn.transaction().unwrap();
+        for i in 0..n_notes {
+            let body = format!("{text} 第{i}条 #读书/方法{} #主题{}", i % 40, i % 300);
+            let n = Note {
+                id: format!("n{i:06}"),
+                anchor: serde_json::json!({"section": i % 30, "start": i, "exact": text}),
+                color: "amber".into(),
+                style: "highlight".into(),
+                note: body,
+                tags: vec![],
+                side: "right".into(),
+                side_locked: false,
+                kind: "passage".into(),
+                images: vec![],
+                created_at: 1_700_000_000_000 + i as i64 * 60_000,
+                updated_at: 1_700_000_000_000 + i as i64 * 60_000,
+            };
+            upsert(&tx, &format!("book{}", i % 300), &n).unwrap();
+        }
+        tx.commit().unwrap();
+        println!("insert {n_notes} notes: {:?}", t0.elapsed());
+        let t = Instant::now();
+        let page = notes_where(&conn, "1 = 1", vec![], "n.created_at DESC", 100, 0).unwrap();
+        println!("first page of 100 (newest): {:?} ({} rows)", t.elapsed(), page.len());
+        let t = Instant::now();
+        let total: i64 = conn.query_row("SELECT count(*) FROM notes n WHERE 1 = 1", [], |r| r.get(0)).unwrap();
+        println!("count all: {:?} ({total})", t.elapsed());
+        let t = Instant::now();
+        let hits = notes_where(&conn, "EXISTS (SELECT 1 FROM note_tags t WHERE t.note_id = n.id AND (t.tag = ? OR substr(t.tag, 1, ?) = ?))", vec![Sql::Text("读书".into()), Sql::Integer(3), Sql::Text("读书/".into())], "n.created_at DESC", 100, 0).unwrap();
+        println!("filter by a tag (first 100): {:?} ({} rows)", t.elapsed(), hits.len());
+        let t = Instant::now();
+        let r = notes_where(&conn, "n.rowid IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?)", vec![Sql::Text("\"改变看事情\"".into())], "n.created_at DESC", 100, 0).unwrap();
+        println!("full-text search, 3+ chars (first 100): {:?} ({} rows)", t.elapsed(), r.len());
+        let t = Instant::now();
+        let r = notes_where(&conn, "(instr(lower(n.quote), lower(?)) > 0 OR instr(lower(n.note), lower(?)) > 0)", vec![Sql::Text("读书".into()), Sql::Text("读书".into())], "n.created_at DESC", 100, 0).unwrap();
+        println!("short search (2 chars, scan) (first 100): {:?} ({} rows)", t.elapsed(), r.len());
+        let t = Instant::now();
+        let mut stmt = conn.prepare("SELECT tag, note_id FROM note_tags").unwrap();
+        let rows: Vec<(String, String)> = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().collect::<Result<_, _>>().unwrap();
+        let (all, _own) = count_tags(rows.clone(), &HashMap::new());
+        println!("tag tree ({} pairs -> {} tags): {:?}", rows.len(), all.len(), t.elapsed());
+        let t = Instant::now();
+        let everything = notes_where(&conn, "1 = 1", vec![], "n.created_at DESC", -1, 0).unwrap();
+        let json = serde_json::to_string(&everything).unwrap();
+        println!("ALL notes (limit -1) + JSON: {:?}, {:.1} MB", t.elapsed(), json.len() as f64 / 1e6);
+        let t = Instant::now();
+        let heat: i64 = conn.query_row("SELECT count(DISTINCT date(created_at / 1000, 'unixepoch')) FROM notes", [], |r| r.get(0)).unwrap();
+        println!("distinct days: {:?} ({heat})", t.elapsed());
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[test]
     fn shuffle_is_stable_per_seed() {
         let conn = Connection::open_in_memory().unwrap();
@@ -739,6 +1188,146 @@ mod tests {
         assert_eq!(ids(20401), ids(20401));
         assert_ne!(ids(20401), ids(20402));
         assert_eq!(ids(20401).len(), 5);
+    }
+
+    fn plain_note(id: &str) -> Note {
+        Note {
+            id: id.into(),
+            anchor: serde_json::json!({"section": 0, "start": 0, "exact": id}),
+            color: "amber".into(),
+            style: "highlight".into(),
+            note: String::new(),
+            tags: vec![],
+            side: "right".into(),
+            side_locked: false,
+            kind: "passage".into(),
+            images: vec![],
+            created_at: 1,
+            updated_at: 1,
+        }
+    }
+
+    fn link(id: &str, a: &str, b: &str, label: &str) -> Link {
+        Link { id: id.into(), a: a.into(), b: b.into(), label: label.into(), color: String::new(), style: String::new(), side_a: String::new(), side_b: String::new(), created_at: 1, updated_at: 1 }
+    }
+
+    #[test]
+    fn links_many_to_many_and_cascade() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        for id in ["n1", "n2", "n3", "n4"] {
+            upsert(&conn, "b", &plain_note(id)).unwrap();
+        }
+        // one note linked to many, many notes linked to one, and the same pair linked twice
+        link_put_one(&conn, &link("l1", "n1", "n2", "举例")).unwrap();
+        link_put_one(&conn, &link("l2", "n3", "n1", " 反驳 ")).unwrap();
+        link_put_one(&conn, &link("l3", "n1", "n4", "")).unwrap();
+        link_put_one(&conn, &link("l4", "n2", "n1", "延伸")).unwrap();
+        let all = links_list(&conn).unwrap();
+        assert_eq!(all.len(), 4);
+        // stored in a stable order (a < b) and trimmed
+        let l2 = all.iter().find(|l| l.id == "l2").unwrap();
+        assert_eq!((l2.a.as_str(), l2.b.as_str(), l2.label.as_str()), ("n1", "n3", "反驳"));
+        // editing the text of a link keeps the link
+        let mut edited = link("l1", "n1", "n2", "例证");
+        edited.updated_at = 5;
+        link_put_one(&conn, &edited).unwrap();
+        assert_eq!(links_list(&conn).unwrap().len(), 4);
+        assert_eq!(links_list(&conn).unwrap().iter().find(|l| l.id == "l1").unwrap().label, "例证");
+        // no self links, no links to notes that do not exist
+        assert!(link_put_one(&conn, &link("x", "n1", "n1", "")).is_err());
+        assert!(link_put_one(&conn, &link("y", "n1", "ghost", "")).is_err());
+        // deleting a note removes exactly its links
+        delete_ids(&conn, &["n1".to_string()]).unwrap();
+        assert!(links_list(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn link_colour_and_style_roundtrip_and_old_tables_are_upgraded() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        upsert(&conn, "b", &plain_note("n1")).unwrap();
+        upsert(&conn, "b", &plain_note("n2")).unwrap();
+        let mut l = link("l1", "n1", "n2", "x");
+        l.color = "rose".into();
+        l.style = "dashed".into();
+        link_put_one(&conn, &l).unwrap();
+        l.id = "l2".into();
+        l.style = "wavy".into(); // unknown styles fall back to solid
+        link_put_one(&conn, &l).unwrap();
+        let all = links_list(&conn).unwrap();
+        assert_eq!((all[0].color.as_str(), all[0].style.as_str()), ("rose", "dashed"));
+        assert_eq!(all[1].style, "");
+        // a table written by the first build of the feature (no colour / style columns) gets them added, data kept
+        let old = Connection::open_in_memory().unwrap();
+        old.execute_batch(
+            "CREATE TABLE notes(id TEXT PRIMARY KEY, book_id TEXT NOT NULL, section INTEGER NOT NULL DEFAULT 0, pos INTEGER NOT NULL DEFAULT 0,
+               anchor TEXT NOT NULL, quote TEXT NOT NULL DEFAULT '', color TEXT NOT NULL, style TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
+               thought INTEGER NOT NULL DEFAULT 0, side TEXT NOT NULL DEFAULT 'right', side_locked INTEGER NOT NULL DEFAULT 0,
+               kind TEXT NOT NULL DEFAULT 'passage', images TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+             CREATE TABLE note_links(id TEXT PRIMARY KEY, a TEXT NOT NULL, b TEXT NOT NULL, label TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+             INSERT INTO note_links VALUES('old', 'n1', 'n2', '举例', 1, 1);",
+        )
+        .unwrap();
+        upgrade(&old).unwrap();
+        upgrade(&old).unwrap(); // idempotent
+        let kept = links_list(&old).unwrap();
+        assert_eq!((kept[0].label.as_str(), kept[0].color.as_str(), kept[0].style.as_str()), ("举例", "", ""));
+    }
+
+    #[test]
+    fn link_sides_are_stored_follow_their_cards_and_junk_is_ignored() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        upsert(&conn, "b", &plain_note("n1")).unwrap();
+        upsert(&conn, "b", &plain_note("n2")).unwrap();
+        // given "backwards" (n2 first): the pair is stored as n1 < n2 and the sides are swapped along with it
+        let mut l = link("l1", "n2", "n1", "x");
+        l.side_a = "t".into(); // top of n2
+        l.side_b = "l".into(); // left of n1
+        link_put_one(&conn, &l).unwrap();
+        let got = &links_list(&conn).unwrap()[0];
+        assert_eq!((got.a.as_str(), got.b.as_str(), got.side_a.as_str(), got.side_b.as_str()), ("n1", "n2", "l", "t"));
+        let mut bad = link("l2", "n1", "n2", "y");
+        bad.side_a = "diagonal".into();
+        link_put_one(&conn, &bad).unwrap();
+        assert_eq!(links_list(&conn).unwrap()[1].side_a, "");
+    }
+
+    #[test]
+    fn graph_card_size_is_stored_and_old_position_tables_are_upgraded() {
+        let old = Connection::open_in_memory().unwrap();
+        old.execute_batch(
+            "CREATE TABLE notes(id TEXT PRIMARY KEY, book_id TEXT NOT NULL, section INTEGER NOT NULL DEFAULT 0, pos INTEGER NOT NULL DEFAULT 0,
+               anchor TEXT NOT NULL, quote TEXT NOT NULL DEFAULT '', color TEXT NOT NULL, style TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
+               thought INTEGER NOT NULL DEFAULT 0, side TEXT NOT NULL DEFAULT 'right', side_locked INTEGER NOT NULL DEFAULT 0,
+               kind TEXT NOT NULL DEFAULT 'passage', images TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+             CREATE TABLE graph_pos(note_id TEXT PRIMARY KEY, x REAL NOT NULL, y REAL NOT NULL);
+             INSERT INTO graph_pos VALUES('n1', 10.5, -3.0);",
+        )
+        .unwrap();
+        upgrade(&old).unwrap();
+        upgrade(&old).unwrap(); // idempotent
+        let (x, w, h): (f64, f64, f64) = old.query_row("SELECT x, w, h FROM graph_pos WHERE note_id = 'n1'", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
+        assert_eq!((x, w, h), (10.5, 0.0, 0.0)); // position kept, size = default
+        old.execute("UPDATE graph_pos SET w = 120, h = 40 WHERE note_id = 'n1'", []).unwrap();
+        let (w, h): (f64, f64) = old.query_row("SELECT w, h FROM graph_pos", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        assert_eq!((w, h), (120.0, 40.0));
+    }
+
+    #[test]
+    fn links_survive_rewriting_a_book() {
+        // saving a book's notes again (what the reader does after every edit) must not touch their links
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        upsert(&conn, "b", &plain_note("n1")).unwrap();
+        upsert(&conn, "b", &plain_note("n2")).unwrap();
+        link_put_one(&conn, &link("l1", "n1", "n2", "x")).unwrap();
+        let mut changed = plain_note("n1");
+        changed.note = "改过".into();
+        changed.updated_at = 9;
+        upsert(&conn, "b", &changed).unwrap();
+        assert_eq!(links_list(&conn).unwrap().len(), 1);
     }
 
     #[test]
@@ -861,6 +1450,27 @@ mod tests {
         };
         assert_eq!(days(0), vec![("2024-01-01".into(), 1), ("2024-01-02".into(), 1)]);
         assert_eq!(days(480), vec![("2024-01-02".into(), 2)]);
+    }
+
+    #[test]
+    fn aliased_tags_are_counted_as_one() {
+        let rows = vec![
+            ("Status/待办复盘".to_string(), "n1".to_string()),
+            ("Status/Todo-review".to_string(), "n2".to_string()),
+            ("Status/Todo-review".to_string(), "n1".to_string()),
+            ("读书".to_string(), "n3".to_string()),
+        ];
+        let mut map = HashMap::new();
+        map.insert("Status/Todo-review".to_string(), "Status/待办复盘".to_string());
+        let (all, own) = count_tags(rows.clone(), &map);
+        assert_eq!(all["Status/待办复盘"].len(), 2, "two notes, n1 counted once");
+        assert_eq!(all["Status"].len(), 2);
+        assert!(!all.contains_key("Status/Todo-review"));
+        assert_eq!(own["Status/待办复盘"], 3);
+        // without aliases the two spellings stay apart
+        let (plain, _) = count_tags(rows, &HashMap::new());
+        assert_eq!(plain["Status/Todo-review"].len(), 2);
+        assert_eq!(plain["Status/待办复盘"].len(), 1);
     }
 
     #[test]

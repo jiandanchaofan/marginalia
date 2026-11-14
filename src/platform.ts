@@ -4,6 +4,7 @@
  */
 import type { BookRecord } from "./core/types";
 import { ACCEPTED_EXTENSIONS } from "./core/formats";
+import { brandName, t } from "./i18n";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -64,14 +65,20 @@ export async function loadJson<T>(rel: string, fallback: T): Promise<T> {
 }
 export const saveJson = (rel: string, value: unknown) => writeData(rel, JSON.stringify(value, null, 1));
 
+/**
+ * The shelf. Desktop: the `books` table (one row per book). Browser preview: a JSON file in local storage.
+ * On the desktop a failure to read is an error, not an empty shelf: the shelf is saved as a whole, and an empty list that only
+ * means "could not read" must never be written back over the real one.
+ */
 export async function loadLibrary(): Promise<BookRecord[]> {
+  if (isTauri) return invoke<BookRecord[]>("books_all");
   try {
     return JSON.parse((await readData("library.json")) ?? "[]");
   } catch {
     return [];
   }
 }
-export const saveLibrary = (books: BookRecord[]) => writeData("library.json", JSON.stringify(books, null, 1));
+export const saveLibrary = (books: BookRecord[]) => (isTauri ? invoke<void>("books_replace", { books }) : writeData("library.json", JSON.stringify(books, null, 1)));
 
 // ---------- books ----------
 export async function importPath(path: string): Promise<ImportedBook> {
@@ -89,8 +96,19 @@ export async function importBrowserFile(file: File): Promise<ImportedBook> {
 export async function readBook(id: string, ext: string): Promise<Uint8Array> {
   if (isTauri) return new Uint8Array(await invoke<ArrayBuffer>("read_book", { id, ext }));
   const b = memBooks.get(`${id}.${ext}`);
-  if (!b) throw new Error("浏览器预览模式下，书籍只保存在本次会话中，请重新导入。");
+  if (!b) throw new Error(t("plat.browserBook"));
   return b;
+}
+
+/** Random access to a stored book (desktop: read from the file piece by piece; browser preview: the in-memory copy). */
+export async function bookSource(id: string, ext: string): Promise<{ size: number; read(offset: number, len: number): Promise<Uint8Array> }> {
+  if (isTauri) {
+    const size = await invoke<number>("book_size", { id, ext });
+    return { size, read: async (offset, len) => new Uint8Array(await invoke<ArrayBuffer>("read_book_range", { id, ext, offset, len })) };
+  }
+  const b = memBooks.get(`${id}.${ext}`);
+  if (!b) throw new Error(t("plat.browserBook"));
+  return { size: b.length, read: async (offset, len) => b.subarray(offset, offset + len) };
 }
 
 export async function deleteBook(id: string, ext: string) {
@@ -99,7 +117,7 @@ export async function deleteBook(id: string, ext: string) {
 }
 
 // ---------- web clipping ----------
-const needsDesktop = () => new Error("网页剪藏需要在墨边桌面应用中使用（浏览器预览模式无法跨站抓取）。");
+const needsDesktop = () => new Error(t("plat.needsDesktop"));
 
 export async function fetchPage(url: string): Promise<{ finalUrl: string; html: string }> {
   if (!isTauri) throw needsDesktop();
@@ -134,7 +152,7 @@ export async function pickFiles(): Promise<(string | File)[]> {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const res = await open({
       multiple: true,
-      filters: [{ name: "文档", extensions: ACCEPTED_EXTENSIONS }],
+      filters: [{ name: t("plat.docFilter"), extensions: ACCEPTED_EXTENSIONS }],
     });
     return res ? (Array.isArray(res) ? res : [res]) : [];
   }
@@ -151,7 +169,7 @@ export async function pickFiles(): Promise<(string | File)[]> {
 export async function confirmDialog(message: string): Promise<boolean> {
   if (isTauri) {
     const { confirm } = await import("@tauri-apps/plugin-dialog");
-    return confirm(message, { title: "墨边", kind: "warning", okLabel: "确定", cancelLabel: "取消" });
+    return confirm(message, { title: t("plat.confirmTitle"), kind: "warning", okLabel: t("plat.confirmOk"), cancelLabel: t("plat.confirmCancel") });
   }
   return window.confirm(message);
 }
@@ -183,13 +201,13 @@ export async function exportTextFile(defaultName: string, content: string, image
 
 let webWindows = 0;
 /** Show a web page inside the app (its own window) instead of handing it to the system browser. */
-export async function openWebWindow(url: string, title = "原始网页") {
+export async function openWebWindow(url: string, title = t("plat.webTitle")) {
   if (!isTauri) {
     window.open(url, "_blank", "noopener");
     return;
   }
   const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-  const w = new WebviewWindow(`web-${Date.now()}-${webWindows++}`, { url, title: `${title} · 墨边`, width: 1120, height: 860, center: true });
+  const w = new WebviewWindow(`web-${Date.now()}-${webWindows++}`, { url, title: `${title} · ${brandName()}`, width: 1120, height: 860, center: true });
   w.once("tauri://error", (e) => console.error("web window failed", e));
 }
 
@@ -271,9 +289,20 @@ export const backupApi = {
 };
 
 export async function appVersion(): Promise<string> {
-  if (!isTauri) return "网页预览";
+  if (!isTauri) return t("plat.webPreview");
   const { getVersion } = await import("@tauri-apps/api/app");
   return getVersion();
+}
+
+/** Real full screen for the whole application window (desktop only; a no-op in the browser preview). */
+export async function setWindowFullscreen(on: boolean) {
+  if (!isTauri) return;
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().setFullscreen(on);
+  } catch (e) {
+    console.warn("fullscreen failed", e);
+  }
 }
 
 /** Browser-style zoom of the whole window (desktop). Layout, text, PDF pages and overlay geometry all scale together. */
@@ -284,5 +313,41 @@ export async function setViewZoom(factor: number) {
     await getCurrentWebview().setZoom(factor);
   } catch (e) {
     console.warn("zoom failed", e);
+  }
+}
+
+/** Window title (and tab title in the browser) in the current language. */
+export async function setWindowTitle(title: string) {
+  document.title = title;
+  if (!isTauri) return;
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().setTitle(title);
+  } catch {
+    /* not critical */
+  }
+}
+
+/**
+ * True on the very first launch of a fresh installation (no settings were ever saved). Worked out once, when this module
+ * loads, before the app saves anything. An existing user who upgrades has settings and is therefore never "fresh".
+ */
+export const FIRST_RUN = (() => {
+  try {
+    return localStorage.getItem("reader:settings") === null && localStorage.getItem("reader:first-run") === null;
+  } catch {
+    return false;
+  }
+})();
+export const markFirstRunDone = () => ls.set("reader:first-run", "1");
+
+/** Maximise the application window (desktop only). */
+export async function maximizeWindow() {
+  if (!isTauri) return;
+  try {
+    const { getCurrentWindow } = await import("@tauri-apps/api/window");
+    await getCurrentWindow().maximize();
+  } catch (e) {
+    console.warn("maximize failed", e);
   }
 }

@@ -9,23 +9,28 @@ import { AddSourceDialog } from "./AddSourceDialog";
 import { Preview } from "./Preview";
 import { InterestChip } from "./InterestPicker";
 import { InterestDialog } from "./InterestDialog";
+import { fmtDate, t as tr } from "../i18n";
+import { localizeErr } from "../i18n/errors";
 
 const PAGE = 60;
 const DAY = 86_400_000;
+
+/** The built-in "manual" source is stored with a fixed title; show it in the current language. */
+const srcTitle = (s: { kind: string; title: string }) => (s.kind === "manual" ? tr("ib.manual") : s.title);
 
 const dayLabel = (t: number) => {
   const d = new Date(t);
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  if (t >= start.getTime()) return "今天";
-  if (t >= start.getTime() - DAY) return "昨天";
-  if (t >= start.getTime() - 6 * DAY) return `星期${"日一二三四五六"[d.getDay()]}`;
-  return d.getFullYear() === start.getFullYear() ? `${d.getMonth() + 1}月${d.getDate()}日` : `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  if (t >= start.getTime()) return tr("ib.today");
+  if (t >= start.getTime() - DAY) return tr("ib.yesterday");
+  if (t >= start.getTime() - 6 * DAY) return fmtDate(d, { weekday: "long" });
+  return fmtDate(d, { year: d.getFullYear() === start.getFullYear() ? undefined : "numeric", month: "long", day: "numeric" });
 };
 const timeLabel = (t: number) => {
   const diff = Date.now() - t;
-  if (diff < 3600_000) return `${Math.max(1, Math.round(diff / 60_000))} 分钟前`;
-  if (diff < DAY) return `${Math.round(diff / 3600_000)} 小时前`;
+  if (diff < 3600_000) return tr("time.minAgo", { n: Math.max(1, Math.round(diff / 60_000)) });
+  if (diff < DAY) return tr("time.hourAgo", { n: Math.round(diff / 3600_000) });
   const d = new Date(t);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
@@ -138,11 +143,11 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
       inflight.current.add(id);
       fetchSummary(item.url)
         .then(async (s) => {
-          const text = s || "（未能提取首段）";
+          const text = s || tr("ib.noSummary");
           setSummaries((m) => ({ ...m, [id]: text }));
           if (s) await feedsApi.setSummary(id, s);
         })
-        .catch(() => setSummaries((m) => ({ ...m, [id]: "（未能提取首段）" })))
+        .catch(() => setSummaries((m) => ({ ...m, [id]: tr("ib.noSummary") })))
         .finally(() => {
           inflight.current.delete(id);
           pump();
@@ -166,7 +171,7 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
   useEffect(() => () => observer.disconnect(), [observer]);
 
   const removeSource = async (s: Source) => {
-    if (!(await confirmDialog(`取消订阅「${s.title}」？已保存到书架的文章不受影响。`))) return;
+    if (!(await confirmDialog(tr("ib.unsubConfirm", { title: srcTitle(s) })))) return;
     await feedsApi.deleteSource(s.id);
     if (sourceId === s.id) setSourceId(null);
     feedsChanged();
@@ -174,7 +179,7 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
 
   const totalUnread = sources.reduce((n, s) => n + s.unread, 0);
   const current = sourceId ? byId.get(sourceId) : null;
-  const scopeLabel = current ? current.title : interests.length ? interests.join(" / ") : "";
+  const scopeLabel = current ? srcTitle(current) : interests.length ? interests.join(" / ") : "";
   let lastDay = "";
 
   const side = (
@@ -182,7 +187,7 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
       <div className="side-cta">
         <button className="cta-btn cta-subscribe" onClick={() => setAdding(true)}>
           <Plus size={18} />
-          <span>添加订阅</span>
+          <span>{tr("ib.addSource")}</span>
         </button>
         <button
           className="cta-btn cta-clip"
@@ -190,10 +195,10 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
             setDrawer(false);
             onClip();
           }}
-          title="保存一篇网页文章（也可以直接 Ctrl+V 粘贴网址）"
+          title={tr("ib.addArticleTip")}
         >
           <Globe size={18} />
-          <span>添加网文</span>
+          <span>{tr("ib.addArticle")}</span>
         </button>
       </div>
 
@@ -207,14 +212,14 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
           }}
         >
           <InboxIcon size={14} />
-          <span className="side-label">全部文章</span>
+          <span className="side-label">{tr("ib.allArticles")}</span>
           {totalUnread > 0 && <span className="tree-count unread">{totalUnread}</span>}
         </button>
       </div>
 
       {interestList.length > 0 && (
         <>
-          <div className="side-title">阅读兴趣</div>
+          <div className="side-title">{tr("ib.interests")}</div>
           <div className="side-interests">
             {interestList.map((i) => (
               <InterestChip key={i.name} name={i.name} on={interests.includes(i.name)} onClick={() => toggleInterest(i.name)} />
@@ -223,43 +228,43 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
         </>
       )}
 
-      <div className="side-title">来源</div>
+      <div className="side-title">{tr("ib.sources")}</div>
       <div className="side-section">
         {sources.map((s) => (
           <div key={s.id} className={`tree-row source-row-side ${sourceId === s.id ? "on" : ""}`}>
             <button
               className="tree-label"
               onClick={() => (setSourceId(s.id), setDrawer(false))}
-              title={s.kind === "manual" ? "通过「添加网文」、粘贴网址或浏览器书签保存的文章" : s.lastError ? `上次更新失败：${s.lastError}` : s.feedUrl}
+              title={s.kind === "manual" ? tr("ib.manualTip") : s.lastError ? tr("ib.lastError", { err: localizeErr(s.lastError) }) : s.feedUrl}
             >
               {s.kind === "manual" ? <Bookmark size={12} /> : s.lastError ? <AlertCircle size={13} className="src-error" /> : <Rss size={12} />}
               <span className="src-name">
-                <b>{s.title}</b>
+                <b>{srcTitle(s)}</b>
                 {s.interests?.length > 0 && <small>{s.interests.join(" · ")}</small>}
               </span>
             </button>
             {s.kind === "manual" ? <span className="tree-count">{s.total}</span> : s.unread > 0 && <span className="tree-count unread">{s.unread}</span>}
             <span className="tree-actions" hidden={s.kind === "manual"}>
-              <button title="阅读兴趣" onClick={() => setEditingInterests(s.id)}>
+              <button title={tr("ib.interests")} onClick={() => setEditingInterests(s.id)}>
                 <Tags size={12} />
               </button>
               <button
-                title="立即更新"
+                title={tr("ib.refreshNow")}
                 onClick={async () => {
                   const r = await refreshSource(s, true);
                   feedsChanged();
-                  notify(r.error ? `「${s.title}」更新失败：${r.error}` : `「${s.title}」新增 ${r.added} 篇`);
+                  notify(r.error ? tr("ib.refreshFail", { title: srcTitle(s), err: localizeErr(r.error) }) : tr("ib.refreshAdded", { title: srcTitle(s), n: r.added }));
                 }}
               >
                 <RefreshCw size={12} />
               </button>
-              <button title="取消订阅" className="danger" onClick={() => removeSource(s)}>
+              <button title={tr("ib.unsub")} className="danger" onClick={() => removeSource(s)}>
                 <Trash2 size={12} />
               </button>
             </span>
           </div>
         ))}
-        {!sources.length && <div className="side-empty">还没有来源</div>}
+        {!sources.length && <div className="side-empty">{tr("ib.noSources")}</div>}
       </div>
     </aside>
   );
@@ -272,17 +277,17 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
         <div className="nb-toolbar">
           <label className="nb-search">
             <Search size={15} />
-            <input value={q} placeholder="搜索标题与首段" onChange={(e) => setQ(e.target.value)} />
+            <input value={q} placeholder={tr("ib.search")} onChange={(e) => setQ(e.target.value)} />
             {q && (
               <button onClick={() => setQ("")}>
                 <X size={14} />
               </button>
             )}
           </label>
-          <button className="icon-btn" title={refreshing ? "正在更新" : "更新全部订阅"} onClick={onRefresh} disabled={!!refreshing}>
+          <button className="icon-btn" title={refreshing ? tr("ib.updating") : tr("ib.updateAll")} onClick={onRefresh} disabled={!!refreshing}>
             <RefreshCw size={17} className={refreshing ? "spin" : ""} />
           </button>
-          <button className="icon-btn hub-drawer-btn" title="订阅源" onClick={() => setDrawer((d) => !d)}>
+          <button className="icon-btn hub-drawer-btn" title={tr("ib.drawer")} onClick={() => setDrawer((d) => !d)}>
             <Rss size={17} />
           </button>
         </div>
@@ -290,10 +295,10 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
           <div className="segmented small">
             {(
               [
-                ["all", "全部"],
-                ["unread", "未读"],
-                ["saved", "已保存"],
-                ["dismissed", "已忽略"],
+                ["all", tr("ib.f.all")],
+                ["unread", tr("ib.f.unread")],
+                ["saved", tr("ib.f.saved")],
+                ["dismissed", tr("ib.f.dismissed")],
               ] as [ItemView, string][]
             ).map(([v, label]) => (
               <button key={v} className={view === v ? "on" : ""} onClick={() => setView(v)}>
@@ -304,11 +309,11 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
           <span className="nb-spacer" />
           <span className="inbox-status">
             {refreshing
-              ? `正在更新 ${refreshing.done}/${refreshing.total}`
+              ? tr("ib.refreshing", { done: refreshing.done, total: refreshing.total })
               : current?.lastError
-                ? `更新失败：${current.lastError}`
+                ? tr("ib.updateFail", { err: localizeErr(current.lastError) })
                 : lastRefresh
-                  ? `${timeLabel(lastRefresh)}更新`
+                  ? tr("ib.updatedAt", { when: timeLabel(lastRefresh) })
                   : ""}
           </span>
           {(current ? current.unread : totalUnread) > 0 && (
@@ -319,12 +324,12 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
                 feedsChanged();
               }}
             >
-              <CheckCheck size={13} /> 全部标为已读
+              <CheckCheck size={13} /> {tr("ib.markAllRead")}
             </button>
           )}
         </div>
         <div className="nb-count">
-          {scopeLabel ? `${scopeLabel} · ` : ""}共 {page.total} 篇
+          {scopeLabel ? `${scopeLabel} · ` : ""}{tr("ib.total", { n: page.total })}
         </div>
 
         <div className="nb-list feed-list">
@@ -332,19 +337,19 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
             <div className="nb-empty inbox-empty">
               <Rss size={34} strokeWidth={1.3} />
               <p>
-                这里是寻找好文章的地方：订阅常看的博客、网站或公众号合集，新文章会按时间汇集在这里；偶然读到的好文章，点「添加网文」或直接 Ctrl+V 粘贴网址。
+                {tr("ib.intro")}
               </p>
               <div className="inbox-empty-actions">
                 <button className="primary-btn" onClick={() => setAdding(true)}>
-                  <Plus size={16} /> 添加订阅
+                  <Plus size={16} /> {tr("ib.addSource")}
                 </button>
                 <button className="secondary-btn" onClick={onClip}>
-                  <Globe size={16} /> 添加网文
+                  <Globe size={16} /> {tr("ib.addArticle")}
                 </button>
               </div>
             </div>
           )}
-          {sources.length > 0 && !page.items.length && <div className="nb-empty">{view === "unread" ? "没有未读文章了 ✓" : "没有文章"}</div>}
+          {sources.length > 0 && !page.items.length && <div className="nb-empty">{view === "unread" ? tr("ib.noUnread") : tr("ib.noArticles")}</div>}
           {page.items.map((item) => {
             const day = dayLabel(item.publishedAt);
             const header = day !== lastDay ? ((lastDay = day), <div className="nb-group">{day}</div>) : null;
@@ -369,34 +374,34 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
                     {item.author && <span>{item.author}</span>}
                     <span>{timeLabel(item.publishedAt)}</span>
                   </div>
-                  <h3 className="fi-title" onClick={() => openPreview(item)} title="在应用内预览">
+                  <h3 className="fi-title" onClick={() => openPreview(item)} title={tr("ib.previewTip")}>
                     {item.title || item.url}
                   </h3>
-                  <p className={`fi-summary ${summary ? "" : "pending"}`}>{summary || "正在获取首段…"}</p>
+                  <p className={`fi-summary ${summary ? "" : "pending"}`}>{summary || tr("ib.fetching")}</p>
                   <div className="fi-actions">
                     {isSaved ? (
                       <button className="fi-btn primary ghost" onClick={() => onOpenBook(item.id)}>
-                        <BookOpen size={14} /> 已保存 · 打开精读
+                        <BookOpen size={14} /> {tr("ib.savedOpen")}
                       </button>
                     ) : (
                       <button className="fi-btn primary" disabled={saving.has(item.id)} onClick={() => save(item)}>
                         {saving.has(item.id) ? <Loader2 size={14} className="spin" /> : <BookOpen size={14} />}
-                        {saving.has(item.id) ? "保存中…" : "保存精读"}
+                        {saving.has(item.id) ? tr("ib.saving") : tr("ib.save")}
                       </button>
                     )}
                     {item.status === "dismissed" ? (
                       <button className="fi-btn" onClick={() => setStatus(item, "read")}>
-                        <Undo2 size={14} /> 恢复
+                        <Undo2 size={14} /> {tr("ib.restore")}
                       </button>
                     ) : (
                       !isSaved && (
                         <button className="fi-btn" onClick={() => setStatus(item, "dismissed")}>
-                          <EyeOff size={14} /> 忽略
+                          <EyeOff size={14} /> {tr("ib.dismiss")}
                         </button>
                       )
                     )}
                     <button className="fi-btn" onClick={() => openPreview(item)}>
-                      <Eye size={14} /> 预览
+                      <Eye size={14} /> {tr("ib.preview")}
                     </button>
                   </div>
                 </article>
@@ -405,7 +410,7 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
           })}
           {page.total > page.items.length && (
             <button className="nb-more" onClick={() => setLimit((l) => l + PAGE)}>
-              加载更多（还有 {page.total - page.items.length} 篇）
+              {tr("ib.more", { n: page.total - page.items.length })}
             </button>
           )}
         </div>

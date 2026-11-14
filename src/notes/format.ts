@@ -7,7 +7,18 @@
 
 export type InlineKind = "b" | "i" | "u" | "s";
 export type Inline = { t: "text"; v: string } | { t: InlineKind; c: Inline[] };
-export type Block = { kind: "p"; text: string } | { kind: "ul" | "ol"; items: string[]; start?: number };
+export interface TodoItem {
+  done: boolean;
+  /** Nesting level (two spaces per level). */
+  indent: number;
+  /** Text after the checkbox, still containing its `@plan` / `截止:` / `!priority` tokens. */
+  text: string;
+  /** Line number in the note (what a click on the checkbox has to flip). */
+  line: number;
+}
+export type Block = { kind: "p"; text: string } | { kind: "ul" | "ol"; items: string[]; start?: number } | { kind: "todo"; items: TodoItem[] };
+
+import { matchTodo } from "../tasks/parse";
 
 const BULLET = /^(?:[-•]) (.*)$/;
 const ORDERED = /^(\d{1,3})\. (.*)$/;
@@ -20,7 +31,16 @@ export function parseBlocks(text: string): Block[] {
     if (para.length) blocks.push({ kind: "p", text: para.join("\n") });
     para = [];
   };
-  for (const line of text.split("\n")) {
+  for (const [lineNo, line] of text.split("\n").entries()) {
+    const todo = matchTodo(line);
+    if (todo) {
+      flush();
+      const last = blocks[blocks.length - 1];
+      const item = { done: todo.done, indent: todo.indent, text: todo.text, line: lineNo };
+      if (last && last.kind === "todo") last.items.push(item);
+      else blocks.push({ kind: "todo", items: [item] });
+      continue;
+    }
     const b = BULLET.exec(line);
     const o = b ? null : ORDERED.exec(line);
     if (b) {

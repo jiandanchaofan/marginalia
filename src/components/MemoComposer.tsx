@@ -5,6 +5,7 @@ import { notesStore } from "../notes/store";
 import { parseTags, stripTags } from "../notes/tags";
 import { TagTextarea, type TagTextareaHandle } from "./TagTextarea";
 import { FormatBar } from "./FormatBar";
+import { t } from "../i18n";
 
 const DRAFT_KEY = "reader:memo-draft";
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -28,15 +29,29 @@ const saveDraft = (v: string) => {
  * Flomo-style quick capture: a standalone note (kind "free") that belongs to no book or article.
  * `#tag/sub` is typed inline with a caret-following menu; Ctrl+Enter or the send button saves it.
  */
-export function MemoComposer({ prefillTags, notify }: { prefillTags: string[]; notify(msg: string): void }) {
-  const [text, setText] = useState(loadDraft);
+export function MemoComposer({ prefillTags, notify, autoFocus, onSent, fresh }: { prefillTags: string[]; notify(msg: string): void; autoFocus?: boolean; onSent?(): void; fresh?: boolean }) {
+  const [text, setText] = useState(fresh ? "" : loadDraft);
   const [images, setImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const ref = useRef<TagTextareaHandle>(null);
   const [tagsHost, setTagsHost] = useState<HTMLElement | null>(null);
   const prefilled = useRef("");
 
-  useEffect(() => saveDraft(text), [text]);
+  useEffect(() => {
+    if (!fresh) saveDraft(text);
+  }, [text, fresh]);
+  // Ctrl + N while this box is on the page: start from an empty box
+  useEffect(() => {
+    const clear = () => {
+      setText("");
+      setImages([]);
+    };
+    window.addEventListener("reader:memo-clear", clear);
+    return () => window.removeEventListener("reader:memo-clear", clear);
+  }, []);
+  useEffect(() => {
+    if (autoFocus) window.setTimeout(() => ref.current?.focus(), 30);
+  }, [autoFocus]);
 
   // Filtering by a tag pre-fills it, so a note written there lands in that tag. Never overwrites the user's own words.
   useEffect(() => {
@@ -62,9 +77,10 @@ export function MemoComposer({ prefillTags, notify }: { prefillTags: string[]; n
       prefilled.current = want;
       setText(want);
       setImages([]);
-      ref.current?.focus();
+      if (onSent) onSent();
+      else ref.current?.focus();
     } catch (e) {
-      notify(`保存失败：${e}`);
+      notify(t("memo.saveFail", { err: String(e) }));
     } finally {
       setBusy(false);
     }
@@ -72,21 +88,21 @@ export function MemoComposer({ prefillTags, notify }: { prefillTags: string[]; n
 
   return (
     <div className="memo-composer">
-      <TagTextarea ref={ref} className="note-editor memo-input" value={text} onChange={setText} images={images} onImages={setImages} onImageError={notify} tagsHost={tagsHost} placeholder="现在的想法是…  输入 # 添加标签；可直接粘贴截图 / 拖入图片" onSubmit={send} />
+      <TagTextarea ref={ref} className="note-editor memo-input" value={text} onChange={setText} images={images} onImages={setImages} onImageError={notify} tagsHost={tagsHost} placeholder={t("memo.placeholder")} onSubmit={send} />
       <div className="memo-bar">
-        <button className="memo-tool" title="插入标签（#）" onMouseDown={(e) => e.preventDefault()} onClick={() => ref.current?.startTag()}>
+        <button className="memo-tool" title={t("memo.insertTag")} onMouseDown={(e) => e.preventDefault()} onClick={() => ref.current?.startTag()}>
           <Hash size={16} />
         </button>
-        <button className="memo-tool" title="添加图片（也可直接粘贴截图）" onMouseDown={(e) => e.preventDefault()} onClick={() => ref.current?.pickImage()}>
+        <button className="memo-tool" title={t("card.addImage")} onMouseDown={(e) => e.preventDefault()} onClick={() => ref.current?.pickImage()}>
           <ImagePlus size={16} />
         </button>
         <FormatBar onFormat={(k) => ref.current?.format(k)} size={15} />
         <span className="memo-tags" ref={setTagsHost} />
-        <span className="memo-count">{body ? `${text.trim().length} 字` : text.trim() && !images.length ? "只有标签，再写点文字才能发送" : ""}</span>
+        <span className="memo-count">{body ? t("memo.count", { n: text.trim().length }) : text.trim() && !images.length ? t("memo.onlyTags") : ""}</span>
         <span className="nb-spacer" />
         <span className="memo-hint">Ctrl + Enter</span>
-        <button className="memo-send" disabled={!canSend} onClick={send} title="发送（Ctrl + Enter）">
-          <Send size={14} /> 发送
+        <button className="memo-send" disabled={!canSend} onClick={send} title={t("memo.sendTip")}>
+          <Send size={14} /> {t("memo.send")}
         </button>
       </div>
     </div>

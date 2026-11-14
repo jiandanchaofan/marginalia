@@ -1,0 +1,33 @@
+/* toast: a light pill at the bottom, gone after a moment */
+.tr-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 3200; display: flex; align-items: center; gap: 14px; padding: 9px 18px; border-radius: 22px; background: color-mix(in srgb, var(--text) 86%, transparent); color: var(--bg); font-size: 13.5px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: tr-in 0.16s ease-out; max-width: calc(100vw - 32px); }
+.tr-toast button { border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; padding: 0; opacity: 0.95; }
+@keyframes tr-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+@media (prefers-reduced-motion: reduce) { .tr-toast { animation: none; } }
+
+/* the confirmation before moving to the bin */
+.tr-wrap { align-items: center; padding-top: 16px; z-index: 3150; }
+.tr-confirm { width: min(100%, 420px); padding: 20px 22px 16px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); display: flex; flex-direction: column; gap: 12px; }
+.tr-confirm p { margin: 0; font-size: 14.5px; line-height: 1.6; }
+.tr-confirm .check { font-size: 12.5px; color: var(--muted); }
+.tr-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.batch-btn.danger { color: #b0452a; border-color: color-mix(in srgb, #b0452a 40%, var(--line)); }
+.tr-btns .batch-btn.danger { background: #b0452a; border-color: #b0452a; color: #fff; }
+
+/* the bin page */
+.trp { display: flex; flex-direction: column; gap: 14px; min-width: 0; overflow-y: auto; min-height: 0; flex: 1; padding: 4px 6px 60px 0; }
+.trp-head { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; justify-content: space-between; }
+.trp-head h2 { margin: 0; display: flex; align-items: center; gap: 8px; }
+.trp-sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.trp-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.trp-count { font-size: 12.5px; color: var(--muted); }
+.trp-list { display: flex; flex-direction: column; gap: 8px; }
+.trp-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.trp-row.on { background: color-mix(in srgb, var(--ui-accent) 10%, var(--card)); border-color: color-mix(in srgb, var(--ui-accent) 40%, var(--line)); }
+.trp-main { flex: 1; min-width: 0; cursor: pointer; }
+.trp-quote { font-size: 12.5px; color: var(--muted); border-left: 2px solid var(--line); padding-left: 8px; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trp-title { font-size: 14px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.trp-meta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 3px; font-size: 11.5px; color: var(--muted); }
+.trp-meta .soon { color: #b0452a; font-weight: 600; }
+.trp-act { flex: none; border: 0; background: none; color: var(--muted); padding: 6px; border-radius: 8px; cursor: pointer; display: inline-flex; }
+.trp-act:hover { background: var(--soft); color: var(--ui-accent); }
+.trp-act.danger:hover { color: #b0452a; }

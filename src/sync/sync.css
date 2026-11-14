@@ -1,0 +1,13 @@
+.sy-f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); max-width: 440px; width: 100%; }
+.sy-f input { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; font-size: 13.5px; }
+.sy-f input:focus { outline: 2px solid color-mix(in srgb, var(--ui-accent) 40%, transparent); border-color: var(--ui-accent); }
+.sy-line { display: flex; flex-direction: column; gap: 2px; }
+.sy-line span { font-size: 12.5px; color: var(--muted); }
+.sy-status { margin: 2px 0; font-size: 13px; color: var(--text); }
+.sy-err { margin: 2px 0; font-size: 13px; color: #b0452a; max-width: 62ch; }
+.sy-warn { color: #b0452a; }
+.sy-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.sy-modal { max-width: 460px; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; padding: 22px 24px; }
+.sy-modal h3 { margin: 0; display: flex; align-items: center; gap: 8px; }
+.sy-modal p { margin: 0; font-size: 13.5px; line-height: 1.6; }
+.sy-key { display: block; width: 100%; padding: 12px 14px; border-radius: 10px; background: var(--soft); border: 1px dashed var(--line); font-size: 15px; letter-spacing: 0.05em; word-break: break-all; user-select: all; }

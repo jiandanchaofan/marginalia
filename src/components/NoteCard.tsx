@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeftRight, Hash, ImagePlus, Trash2 } from "lucide-react";
 import type { Annotation, HighlightStyle } from "../core/types";
 import { PALETTE, STYLES, swatch } from "../core/palette";
@@ -7,7 +7,11 @@ import { StylePreview } from "./StylePreview";
 import { TagTextarea, type TagTextareaHandle } from "./TagTextarea";
 import { NoteText } from "./NoteText";
 import { FormatBar } from "./FormatBar";
-import { NoteImages } from "./NoteImages";
+import { NoteImages, RegionQuote } from "./NoteImages";
+import { toggleTodoLine } from "../notes/edit";
+import { reflectTitleOnTick } from "../tasks/reflect";
+import { ReflectBox } from "./ReflectBox";
+import { fmtDateTime, t } from "../i18n";
 
 interface Props {
   a: Annotation;
@@ -32,12 +36,13 @@ const fmt = (t: number) => {
   const d = new Date(t);
   const now = new Date();
   const sameYear = d.getFullYear() === now.getFullYear();
-  return `${sameYear ? "" : d.getFullYear() + "年"}${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return fmtDateTime(d, { year: sameYear ? undefined : "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 };
 
 export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSide, onSwapSide, style, onActivate, onChange, onDelete, onHeight, onTag, onDone }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const editor = useRef<TagTextareaHandle>(null);
+  const [reflect, setReflect] = useState<string | null>(null);
   const sw = swatch(a.color);
   const accent = theme === "dark" ? sw.dark : sw.ink;
 
@@ -63,12 +68,12 @@ export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSi
         }
       }}
     >
-      <div className="note-quote">{a.anchor.exact}</div>
+      {a.anchor.region ? <RegionQuote id={a.anchor.thumb} page={a.anchor.image ? undefined : a.anchor.section} className="region-quote small" /> : <div className="note-quote">{a.anchor.exact}</div>}
       {active ? (
         <TagTextarea
           ref={editor}
           className="note-editor"
-          placeholder="写下你的想法，输入 # 添加标签；Ctrl + Enter 保存"
+          placeholder={t("card.placeholder")}
           value={a.note}
           autoFocus={autoFocus}
           onChange={(note) => onChange({ note })}
@@ -83,8 +88,13 @@ export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSi
         />
       ) : (
         <>
-          {a.note && <NoteText text={a.note} onTag={onTag} />}
+          {a.note && <NoteText text={a.note} onTag={onTag} onToggle={(line) => {
+              const title = reflectTitleOnTick(a.note, line);
+              onChange({ note: toggleTodoLine(a.note, line) });
+              setReflect(title || null);
+            }} />}
           <NoteImages ids={a.images} />
+          {reflect && <ReflectBox title={reflect} noteId={a.id} onClose={() => setReflect(null)} />}
         </>
       )}
       {active && (
@@ -109,7 +119,7 @@ export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSi
             {STYLES.map((s) => (
               <button
                 key={s.key}
-                title={s.key === a.style ? `${s.name}（再点一次取消）` : s.name}
+                title={s.key === a.style ? t("card.styleClear", { name: s.name }) : s.name}
                 className={`style-chip ${s.key === a.style ? "on" : ""}`}
                 onClick={() => onChange({ style: (s.key === a.style ? "none" : s.key) as HighlightStyle })}
               >
@@ -123,18 +133,18 @@ export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSi
         <span>{fmt(a.updatedAt)}</span>
         {active && (
           <span className="note-actions">
-            <button title="添加标签" onClick={() => editor.current?.startTag()}>
+            <button title={t("card.addTag")} onClick={() => editor.current?.startTag()}>
               <Hash size={14} />
             </button>
-            <button title="添加图片（也可直接粘贴截图）" onClick={() => editor.current?.pickImage()}>
+            <button title={t("card.addImage")} onClick={() => editor.current?.pickImage()}>
               <ImagePlus size={14} />
             </button>
             {canSwapSide && (
-              <button title="移到另一侧" onClick={onSwapSide}>
+              <button title={t("card.swap")} onClick={onSwapSide}>
                 <ArrowLeftRight size={14} />
               </button>
             )}
-            <button title="删除" className="danger" onClick={onDelete}>
+            <button title={t("card.delete")} className="danger" onClick={onDelete}>
               <Trash2 size={14} />
             </button>
           </span>

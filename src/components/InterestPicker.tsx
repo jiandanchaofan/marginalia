@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { interestHue } from "../feeds/api";
+import { t } from "../i18n";
 
 /** Coloured chip for one interest. */
 export function InterestChip({ name, on, onClick, small }: { name: string; on?: boolean; onClick?(): void; small?: boolean }) {
@@ -40,7 +41,7 @@ export function InterestPicker({ value, all, onChange }: { value: string[]; all:
           <Plus size={12} />
           <input
             value={draft}
-            placeholder={options.length ? "新增兴趣" : "如：基督教、AI、法律"}
+            placeholder={options.length ? t("interest.new") : t("interest.example")}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === "," || e.key === "，") {

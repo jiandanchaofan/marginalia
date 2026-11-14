@@ -1,13 +1,15 @@
-import { Bold, Italic, List, ListOrdered, Strikethrough, Underline } from "lucide-react";
+import { Bold, Italic, List, ListChecks, ListOrdered, Strikethrough, Underline } from "lucide-react";
 import type { FormatKind } from "../notes/edit";
+import { t } from "../i18n";
 
 const ITEMS: { kind: FormatKind; title: string; Icon: typeof Bold }[] = [
-  { kind: "b", title: "粗体（Ctrl + B）", Icon: Bold },
-  { kind: "i", title: "斜体（Ctrl + I）", Icon: Italic },
-  { kind: "u", title: "下划线（Ctrl + U）", Icon: Underline },
-  { kind: "s", title: "删除线（Ctrl + Shift + X）", Icon: Strikethrough },
-  { kind: "ul", title: "项目符号列表", Icon: List },
-  { kind: "ol", title: "编号列表", Icon: ListOrdered },
+  { kind: "b", get title() { return t("fmt.bold"); }, Icon: Bold },
+  { kind: "i", get title() { return t("fmt.italic"); }, Icon: Italic },
+  { kind: "u", get title() { return t("fmt.underline"); }, Icon: Underline },
+  { kind: "s", get title() { return t("fmt.strike"); }, Icon: Strikethrough },
+  { kind: "ul", get title() { return t("fmt.ul"); }, Icon: List },
+  { kind: "ol", get title() { return t("fmt.ol"); }, Icon: ListOrdered },
+  { kind: "todo", get title() { return t("fmt.todo"); }, Icon: ListChecks },
 ];
 
 /** Small formatting toolbar for a note editor. Buttons keep the text selection (no focus steal). */

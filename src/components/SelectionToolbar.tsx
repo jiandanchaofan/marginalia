@@ -1,8 +1,9 @@
-import { Copy, MessageSquarePlus } from "lucide-react";
+import { Copy, ListChecks, MessageSquarePlus } from "lucide-react";
 import { PALETTE, STYLES } from "../core/palette";
 import type { HighlightStyle } from "../core/types";
 import type { Theme } from "../settings";
 import { StylePreview } from "./StylePreview";
+import { t } from "../i18n";
 
 interface Props {
   x: number;
@@ -14,10 +15,13 @@ interface Props {
   onStyle(s: HighlightStyle): void;
   onPick(color: string): void;
   onNote(): void;
+  onTodo(): void;
   onCopy(): void;
+  /** Region boxes have no text to copy. */
+  hideCopy?: boolean;
 }
 
-export function SelectionToolbar({ x, y, below, theme, color, style, onStyle, onPick, onNote, onCopy }: Props) {
+export function SelectionToolbar({ x, y, below, theme, color, style, onStyle, onPick, onNote, onTodo, onCopy, hideCopy }: Props) {
   const cur = PALETTE.find((p) => p.key === color) ?? PALETTE[0];
   return (
     <div
@@ -29,26 +33,32 @@ export function SelectionToolbar({ x, y, below, theme, color, style, onStyle, on
         {PALETTE.map((p) => (
           <button
             key={p.key}
-            title={`${p.name}（点击即标注）`}
+            title={t("sel.tip", { name: p.name })}
             className={`swatch-dot big ${p.key === color ? "on" : ""}`}
             style={{ ["--dot" as string]: theme === "dark" ? p.dark : p.ink, ["--dot-soft" as string]: theme === "dark" ? p.dark : p.light }}
             onClick={() => onPick(p.key)}
           />
         ))}
         <span className="sel-sep" />
-        <button className="sel-action" title="标注并写笔记" onClick={onNote}>
+        <button className="sel-action" title={t("sel.note")} onClick={onNote}>
           <MessageSquarePlus size={16} />
-          <span>笔记</span>
+          <span>{t("sel.noteLabel")}</span>
         </button>
-        <button className="sel-action icon" title="复制" onClick={onCopy}>
-          <Copy size={15} />
+        <button className="sel-action" title={t("sel.todoTip")} onClick={onTodo}>
+          <ListChecks size={16} />
+          <span>{t("sel.todoLabel")}</span>
         </button>
+        {!hideCopy && (
+          <button className="sel-action icon" title={t("sel.copy")} onClick={onCopy}>
+            <Copy size={15} />
+          </button>
+        )}
       </div>
       <div className="sel-row styles">
         {STYLES.map((s, i) => (
           <span key={s.key} className="style-slot">
             {i > 0 && STYLES[i - 1].group !== s.group && <span className="sel-sep thin" />}
-            <button title={s.key === style ? `${s.name}（再点一次取消样式）` : `${s.name}（点击即标注）`} className={`style-chip ${s.key === style ? "on" : ""}`} onClick={() => onStyle(s.key)}>
+            <button title={s.key === style ? t("sel.styleClear", { name: s.name }) : t("sel.tip", { name: s.name })} className={`style-chip ${s.key === style ? "on" : ""}`} onClick={() => onStyle(s.key)}>
               <StylePreview style={s.key} color={theme === "dark" ? cur.dark : cur.ink} soft={theme === "dark" ? `${cur.dark}55` : cur.light} />
             </button>
           </span>

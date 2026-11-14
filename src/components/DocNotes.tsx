@@ -3,13 +3,17 @@ import { Check, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import type { Annotation, BookRecord, ReadStatus } from "../core/types";
 import { STATUS_LABEL, readStatus } from "../core/types";
 import { NoteText } from "./NoteText";
+import { ReflectBox } from "./ReflectBox";
+import { reflectTitleOnTick } from "../tasks/reflect";
+import { toggleTodoLine } from "../notes/edit";
 import { TagTextarea, type TagTextareaHandle } from "./TagTextarea";
 import { FormatBar } from "./FormatBar";
+import { fmtDateTime, t } from "../i18n";
 
 const fmt = (t: number) => {
   const d = new Date(t);
   const sameYear = d.getFullYear() === new Date().getFullYear();
-  return `${sameYear ? "" : `${d.getFullYear()}年`}${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return fmtDateTime(d, { year: sameYear ? undefined : "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 };
 
 /** Rating (1–5 stars) and reading status of a book/article. Clicking the current value clears it. */
@@ -18,9 +22,9 @@ export function ReadingMeta({ book, onChange }: { book: Pick<BookRecord, "rating
   const status = readStatus(book);
   return (
     <div className="reading-meta">
-      <div className="stars" role="radiogroup" aria-label="评分">
+      <div className="stars" role="radiogroup" aria-label={t("doc.rating")}>
         {[1, 2, 3, 4, 5].map((n) => (
-          <button key={n} className={n <= rating ? "on" : ""} title={`${n} 星${n === rating ? "（再点一次清除）" : ""}`} onClick={() => onChange({ rating: n === rating ? 0 : n })}>
+          <button key={n} className={n <= rating ? "on" : ""} title={n === rating ? t("book.starTipClear", { n }) : t("book.starTip", { n })} onClick={() => onChange({ rating: n === rating ? 0 : n })}>
             <Star size={16} fill={n <= rating ? "currentColor" : "none"} />
           </button>
         ))}
@@ -30,7 +34,7 @@ export function ReadingMeta({ book, onChange }: { book: Pick<BookRecord, "rating
           <button
             key={s}
             className={status === s ? "on" : ""}
-            title={book.status === s ? "再点一次恢复自动判断" : undefined}
+            title={book.status === s ? t("doc.statusAuto") : undefined}
             onClick={() => onChange({ status: book.status === s ? undefined : s })}
           >
             {STATUS_LABEL[s]}
@@ -63,6 +67,7 @@ export function DocNotes({ notes, variant, noun, onAdd, onEdit, onDelete, onTag,
   const [draft, setDraft] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState("");
+  const [reflect, setReflect] = useState<{ id: string; title: string } | null>(null); // a todo was just ticked: ask what it taught
   const root = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -97,7 +102,7 @@ export function DocNotes({ notes, variant, noun, onAdd, onEdit, onDelete, onTag,
         className="note-editor"
         value={draft}
         autoFocus
-        placeholder={`写下对${noun}的整体想法，输入 # 添加标签…`}
+        placeholder={t("doc.placeholder", { noun })}
         onChange={setDraft}
         onSubmit={save}
         // Esc never throws away typed text: with content it only leaves the field; use 取消 to discard.
@@ -105,7 +110,7 @@ export function DocNotes({ notes, variant, noun, onAdd, onEdit, onDelete, onTag,
       />
       <div className="nb-edit-actions">
         <FormatBar onFormat={(k) => composeEditor.current?.format(k)} />
-        <span>Ctrl + Enter 保存</span>
+        <span>{t("nb.saveHint")}</span>
         {variant === "card" && (
           <button
             onClick={() => {
@@ -113,11 +118,11 @@ export function DocNotes({ notes, variant, noun, onAdd, onEdit, onDelete, onTag,
               setComposing(false);
             }}
           >
-            取消
+            {t("common.cancel")}
           </button>
         )}
         <button className="primary" onClick={save} disabled={!draft.trim()}>
-          <Check size={14} /> 保存
+          <Check size={14} /> {t("common.save")}
         </button>
       </div>
     </div>
@@ -127,10 +132,10 @@ export function DocNotes({ notes, variant, noun, onAdd, onEdit, onDelete, onTag,
     <div ref={root} className={`doc-notes ${variant === "panel" ? "big" : "card"}`}>
       {variant === "card" && (
         <div className="doc-head">
-          <span className="doc-title">整体笔记</span>
+          <span className="doc-title">{t("doc.title")}</span>
           {sorted.length > 0 && <span className="doc-count">{sorted.length}</span>}
           {!composing && (
-            <button className="doc-add" title={`写${noun}的整体笔记`} onClick={() => setComposing(true)}>
+            <button className="doc-add" title={t("doc.write", { noun })} onClick={() => setComposing(true)}>
               <Plus size={14} />
             </button>
           )}
@@ -140,13 +145,13 @@ export function DocNotes({ notes, variant, noun, onAdd, onEdit, onDelete, onTag,
 
       {sorted.length === 0 && !composing && variant === "card" && (
         <button className="doc-empty" onClick={() => setComposing(true)}>
-          写下对{noun}的整体想法…
+          {t("doc.empty", { noun })}
         </button>
       )}
 
       {variant === "panel" && sorted.length > 0 && (
         <button className="doc-showall" onClick={onShowAll}>
-          已写 {sorted.length} 条整体笔记，查看与编辑 →
+          {t("doc.showAll", { n: sorted.length })}
         </button>
       )}
 
@@ -157,10 +162,10 @@ export function DocNotes({ notes, variant, noun, onAdd, onEdit, onDelete, onTag,
               <TagTextarea ref={editEditor} fixed={variant === "panel"} className="note-editor" value={editDraft} autoFocus onChange={setEditDraft} onSubmit={saveEdit} onEscape={() => (editDraft !== (notes.find((x) => x.id === editingId)?.note ?? "") ? (document.activeElement as HTMLElement | null)?.blur() : setEditingId(null))} />
               <div className="nb-edit-actions">
                 <FormatBar onFormat={(k) => editEditor.current?.format(k)} />
-                <span>Ctrl + Enter 保存</span>
-                <button onClick={() => setEditingId(null)}>取消</button>
+                <span>{t("nb.saveHint")}</span>
+                <button onClick={() => setEditingId(null)}>{t("common.cancel")}</button>
                 <button className="primary" onClick={saveEdit} disabled={!editDraft.trim()}>
-                  <Check size={14} /> 保存
+                  <Check size={14} /> {t("common.save")}
                 </button>
               </div>
             </div>
@@ -168,7 +173,7 @@ export function DocNotes({ notes, variant, noun, onAdd, onEdit, onDelete, onTag,
             <div
               key={n.id}
               className="doc-entry"
-              title="双击编辑"
+              title={t("doc.dblClick")}
               onDoubleClick={(e) => {
                 if ((e.target as Element).closest("button, a, textarea, input")) return;
                 window.getSelection()?.removeAllRanges();
@@ -176,12 +181,17 @@ export function DocNotes({ notes, variant, noun, onAdd, onEdit, onDelete, onTag,
                 setEditingId(n.id);
               }}
             >
-              <NoteText className="doc-text" text={n.note} onTag={onTag} />
+              <NoteText className="doc-text" text={n.note} onTag={onTag} onToggle={(line) => {
+                  const title = reflectTitleOnTick(n.note, line);
+                  setReflect(title ? { id: n.id, title } : null);
+                  onEdit(n.id, toggleTodoLine(n.note, line));
+                }} />
+              {reflect?.id === n.id && <ReflectBox title={reflect.title} noteId={n.id} onClose={() => setReflect(null)} />}
               <div className="doc-entry-meta">
                 <span>{fmt(n.createdAt)}</span>
                 <span className="doc-entry-actions">
                   <button
-                    title="编辑"
+                    title={t("nb.edit")}
                     onClick={() => {
                       setEditDraft(n.note);
                       setEditingId(n.id);
@@ -189,7 +199,7 @@ export function DocNotes({ notes, variant, noun, onAdd, onEdit, onDelete, onTag,
                   >
                     <Pencil size={12} />
                   </button>
-                  <button title="删除" className="danger" onClick={() => onDelete(n.id)}>
+                  <button title={t("card.delete")} className="danger" onClick={() => onDelete(n.id)}>
                     <Trash2 size={12} />
                   </button>
                 </span>

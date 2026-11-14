@@ -1,28 +1,34 @@
 import type { TocItem } from "../core/types";
 import type { ModePref } from "../core/layout";
+import { t } from "../i18n";
+import type { Key } from "../i18n/zh-Hans";
 import { EN_FONTS, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, type EnFontChoice, type FontChoice, type Settings, type Theme } from "../settings";
 
 export function TocPanel({ toc, current, onGo }: { toc: TocItem[]; current: number; onGo(t: TocItem): void }) {
   const render = (items: TocItem[], depth: number) =>
-    items.map((t, i) => (
+    items.map((item, i) => (
       <div key={`${depth}-${i}`}>
         <button
-          className={`toc-item ${t.section === current ? "on" : ""}`}
+          className={`toc-item ${item.section === current ? "on" : ""}`}
           style={{ paddingLeft: 14 + depth * 14 }}
-          disabled={t.section < 0}
-          onClick={() => onGo(t)}
+          disabled={item.section < 0}
+          onClick={() => onGo(item)}
         >
-          {t.label || "（无标题）"}
+          {item.label || t("common.untitled")}
         </button>
-        {t.children.length > 0 && render(t.children, depth + 1)}
+        {item.children.length > 0 && render(item.children, depth + 1)}
       </div>
     ));
   return (
     <div className="toc-list">
-      {toc.length ? render(toc, 0) : <div className="panel-empty">此文档没有目录</div>}
+      {toc.length ? render(toc, 0) : <div className="panel-empty">{t("common.noToc")}</div>}
     </div>
   );
 }
+
+/** Display name / note of an English-font choice (the three that have their own Chinese names are translated too). */
+const enLabel = (f: (typeof EN_FONTS)[number]) => (f.key === "same" || f.key === "book" || f.key === "sans" ? t(`fonten.${f.key}.label` as Key) : f.label);
+const enNote = (f: (typeof EN_FONTS)[number]) => t(`fonten.${f.key}.note` as Key);
 
 function Segmented<T extends string>({ value, options, onChange }: { value: T; options: [T, string][]; onChange(v: T): void }) {
   return (
@@ -39,19 +45,19 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
 export function SettingsPanel({ s, onChange, isPdf, canZoom = false, libZoom = false, stage }: { s: Settings; onChange(p: Partial<Settings>): void; isPdf: boolean; canZoom?: boolean; libZoom?: boolean; stage?: { mode: string; width: number; dual: number; single: number } }) {
   return (
     <div className="panel settings-panel">
-      <div className="panel-title">阅读设置</div>
+      <div className="panel-title">{t("reading.title")}</div>
       <div className="settings-body">
-        <label>主题</label>
+        <label>{t("reading.theme")}</label>
         <div className="theme-row">
           {(
             [
-              ["paper", "纸张"],
-              ["light", "素白"],
-              ["dark", "夜读"],
+              ["paper", t("reading.theme.paper")],
+              ["light", t("reading.theme.light")],
+              ["dark", t("reading.theme.dark")],
             ] as [Theme, string][]
-          ).map(([t, name]) => (
-            <button key={t} className={`theme-swatch t-${t} ${s.theme === t ? "on" : ""}`} onClick={() => onChange({ theme: t })}>
-              <span>文</span>
+          ).map(([th, name]) => (
+            <button key={th} className={`theme-swatch t-${th} ${s.theme === th ? "on" : ""}`} onClick={() => onChange({ theme: th })}>
+              <span>{t("reading.theme.sample")}</span>
               {name}
             </button>
           ))}
@@ -61,91 +67,96 @@ export function SettingsPanel({ s, onChange, isPdf, canZoom = false, libZoom = f
             {libZoom && (
               <>
                 <label>
-                  书架与笔记缩放 <em>{Math.round(s.libZoom * 100)}%</em>
+                  {t("reading.libZoom")} <em>{Math.round(s.libZoom * 100)}%</em>
                   {s.libZoom !== 1 && (
                     <button className="zoom-reset" onClick={() => onChange({ libZoom: 1 })}>
-                      还原
+                      {t("common.reset")}
                     </button>
                   )}
                 </label>
                 <input type="range" min={ZOOM_MIN} max={ZOOM_MAX} step={ZOOM_STEP} value={s.libZoom} onChange={(e) => onChange({ libZoom: Math.round(+e.target.value * 10) / 10 })} />
-                <p className="settings-hint">放大书架、笔记、探索页面。在这些页面里也可以用 Ctrl + 加号 / 减号、Ctrl + 滚轮，Ctrl + 0 还原。</p>
+                <p className="settings-hint">{t("reading.libZoom.hint")}</p>
               </>
             )}
             <label>
-              阅读界面缩放 <em>{Math.round(s.zoom * 100)}%</em>
+              {t("reading.zoom")} <em>{Math.round(s.zoom * 100)}%</em>
               {s.zoom !== 1 && (
                 <button className="zoom-reset" onClick={() => onChange({ zoom: 1 })}>
-                  还原
+                  {t("common.reset")}
                 </button>
               )}
             </label>
             <input type="range" min={ZOOM_MIN} max={ZOOM_MAX} step={ZOOM_STEP} value={s.zoom} onChange={(e) => onChange({ zoom: Math.round(+e.target.value * 10) / 10 })} />
-            <p className="settings-hint">放大整个阅读界面（正文、笔记、PDF 页面一起）。阅读时用 Ctrl + 加号 / 减号、Ctrl + 滚轮，Ctrl + 0 还原。</p>
+            <p className="settings-hint">{t("reading.zoom.hint")}</p>
           </>
         )}
         {!isPdf && (
           <>
-            <label>字体</label>
+            <label>{t("reading.font")}</label>
             <Segmented<FontChoice>
               value={s.font}
               options={[
-                ["serif", "宋体"],
-                ["kai", "楷体"],
-                ["sans", "黑体"],
+                ["serif", t("reading.font.serif")],
+                ["kai", t("reading.font.kai")],
+                ["sans", t("reading.font.sans")],
               ]}
               onChange={(font) => onChange({ font })}
             />
-            <label>英文字体</label>
+            <label>{t("reading.fontEn")}</label>
             <div className="font-grid">
               {EN_FONTS.map((f) => (
-                <button key={f.key} className={`font-card ${s.fontEn === f.key ? "on" : ""}`} onClick={() => onChange({ fontEn: f.key as EnFontChoice, fontEnUser: true })} title={f.note}>
+                <button key={f.key} className={`font-card ${s.fontEn === f.key ? "on" : ""}`} onClick={() => onChange({ fontEn: f.key as EnFontChoice, fontEnUser: true })} title={enNote(f)}>
                   <span className="font-sample" style={f.stack ? { fontFamily: f.stack } : undefined}>
                     Reading quietly, 1984.
                   </span>
                   <span className="font-name">
-                    {f.label}
-                    {f.builtin && <em className="font-builtin">内置</em>}
+                    {enLabel(f)}
+                    {f.builtin && <em className="font-builtin">{t("reading.builtin")}</em>}
                   </span>
                 </button>
               ))}
             </div>
             {(s.font !== "serif" || s.fontEn !== "sourceserif") && (
               <button className="recommended-font-btn" onClick={() => onChange({ font: "serif", fontEn: "sourceserif", fontEnUser: false })}>
-                恢复推荐搭配（宋体 + Source Serif）
+                {t("reading.recommended")}
               </button>
             )}
-            <p className="settings-hint">{EN_FONTS.find((f) => f.key === s.fontEn)?.note}。中文字符仍使用上面的中文字体；若你的设备没装某款字体，会自动换成相近的。</p>
+            <p className="settings-hint">{t("reading.fontEn.hint", { note: enNote(EN_FONTS.find((f) => f.key === s.fontEn) ?? EN_FONTS[0]) })}</p>
             <label>
-              字号 <em>{s.fontSize}px</em>
+              {t("reading.size")} <em>{s.fontSize}px</em>
             </label>
             <input type="range" min={14} max={28} step={1} value={s.fontSize} onChange={(e) => onChange({ fontSize: +e.target.value })} />
             <label>
-              行距 <em>{s.lineHeight.toFixed(2)}</em>
+              {t("reading.lineHeight")} <em>{s.lineHeight.toFixed(2)}</em>
             </label>
             <input type="range" min={1.4} max={2.4} step={0.05} value={s.lineHeight} onChange={(e) => onChange({ lineHeight: +e.target.value })} />
             <label className="check">
-              <input type="checkbox" checked={s.indent} onChange={(e) => onChange({ indent: e.target.checked })} /> 段首缩进两字
+              <input type="checkbox" checked={s.indent} onChange={(e) => onChange({ indent: e.target.checked })} /> {t("reading.indent")}
             </label>
           </>
         )}
-        <label>笔记布局</label>
+        <label>{t("reading.layout")}</label>
         <Segmented<ModePref>
           value={s.layout}
           options={[
-            ["auto", "自动"],
-            ["dual", "双侧"],
-            ["single", "单侧"],
-            ["compact", "收起"],
-            ["immersive", "沉浸"],
+            ["auto", t("reading.layout.auto")],
+            ["dual", t("reading.layout.dual")],
+            ["single", t("reading.layout.single")],
+            ["compact", t("reading.layout.compact")],
+            ["immersive", t("reading.layout.immersive")],
           ]}
           onChange={(layout) => onChange({ layout })}
         />
-        <p className="settings-hint">“自动”会按窗口宽度在双侧、单侧、收起之间切换；空间不足时强制模式也会自动降级。</p>
+        <p className="settings-hint">{t("reading.layout.hint")}</p>
         {stage && (
           <p className="settings-hint stage-info">
-            当前可用宽度 {stage.width}px，正在使用「{{ dual: "双侧", single: "单侧", compact: "收起", immersive: "沉浸" }[stage.mode] ?? stage.mode}」。双侧需要至少 {stage.dual}px，单侧至少 {stage.single}px；
-            {stage.mode === "dual" ? "宽度充足。" : "不够时可以把窗口拉宽，或按 Ctrl + 减号缩小界面（高分屏的缩放比例大时尤其有用）。"}
+            {t("reading.stage", {
+              width: stage.width,
+              mode: t(`reading.layout.${stage.mode}` as Key),
+              dual: stage.dual,
+              single: stage.single,
+              tail: stage.mode === "dual" ? t("reading.stage.ok") : t("reading.stage.tight"),
+            })}
           </p>
         )}
       </div>

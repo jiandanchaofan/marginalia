@@ -1,29 +1,43 @@
+import { clearReveal, revealActive, revealCount, revealText } from "../search/reveal";
+import { bookIndex, type TextHit } from "../search/backend";
+import { FindPanel } from "../search/FindPanel";
+import { askDeleteNote, reportDeleted } from "../trash/delete";
+import { confirmTrash, toast } from "../trash/ui";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, Download, ExternalLink, List, NotebookPen, StickyNote, Type, X } from "lucide-react";
+import { BoxSelect, ChevronLeft, Download, ExternalLink, List, NotebookPen, StickyNote, Type, X } from "lucide-react";
 import { DOC_ANCHOR, isDocNote, type Annotation, type BookRecord, type HighlightStyle, type LoadedDoc, type TextAnchor, type TocItem } from "../core/types";
-import { loadDocument } from "../core/formats";
+import { openBook } from "../openBook";
 import { describe, resolve } from "../core/anchor";
 import { isMostlyLatin } from "../core/lang";
 import { charBoxes, hitTest, lineBoxes, type Box } from "../core/rects";
-import { shapesFor } from "../core/draw";
+import { regionPath, shapesFor } from "../core/draw";
+import { contrastFrame } from "../core/contrast";
+import { PICTURE_SELECTOR, parseSizeKey, pictureElements, pictureHref, pictureRect, sizeKey } from "../core/picture";
 import { swatch } from "../core/palette";
 import { computeStage, layoutCards, minStageWidth, type CardInput } from "../core/layout";
-import { openExternal, readBook, confirmDialog, exportTextFile, isTauri } from "../platform";
+import { openExternal, exportTextFile, fetchImage, isTauri } from "../platform";
 import { useZoomControls } from "../useZoom";
 import { imageEmbeds, imageIdsOf } from "../notes/query";
 import { notesStore, type NoteHit } from "../notes/store";
 import { parseTags } from "../notes/tags";
+import { putImage } from "../notes/images";
 import { EMPTY_FILTER, NotesBrowser, type NotesFilter } from "./NotesBrowser";
 import { bodyFont, type Settings } from "../settings";
 import { NoteCard } from "./NoteCard";
 import { DocNotes, ReadingMeta } from "./DocNotes";
+import { ReadingStats } from "../reading/ReadingStats";
+import { useReadingTracker } from "../reading/tracker";
 import { SelectionToolbar } from "./SelectionToolbar";
 import { SettingsPanel, TocPanel } from "./Panels";
+import { t } from "../i18n";
+import { fmtDateTime } from "../i18n";
 
 interface Props {
   book: BookRecord;
   /** Open the book at this note (coming from the notes hub). */
   openAtNoteId?: string | null;
+  /** Open the book at this passage (coming from a search in the books' text). */
+  openAtText?: { section: number; text: string; snippet?: string } | null;
   settings: Settings;
   onSettings(p: Partial<Settings>): void;
   onBookUpdate(id: string, p: Partial<BookRecord>): void;
@@ -36,6 +50,19 @@ interface Sel {
   x: number;
   y: number;
   below: boolean;
+}
+
+/** The picture a region belongs to: the same position in the section, checked by its natural size (when known). */
+function findImage(root: HTMLElement | null, ref: { index: number; key: string }): Element | null {
+  if (!root?.isConnected) return null;
+  const pics = pictureElements(root);
+  const sizeOf = (i: Element) => (i instanceof HTMLImageElement ? `${i.naturalWidth}x${i.naturalHeight}` : null);
+  const at = pics[ref.index];
+  if (at) {
+    const k = sizeOf(at);
+    if (!k || k === "0x0" || k === ref.key) return at; // not loaded yet (or an SVG picture): trust the position
+  }
+  return pics.find((i) => sizeOf(i) === ref.key) ?? null;
 }
 
 interface Geometry {
@@ -54,7 +81,7 @@ const CARD_GAP = 10;
 const DOC_CARD = "__doc__";
 const MARKER_GUTTER = 18;
 
-export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate, onClose, onError }: Props) {
+export function Reader({ book, openAtNoteId, openAtText, settings, onSettings, onBookUpdate, onClose, onError }: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -69,11 +96,99 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
   const [activeId, setActiveId] = useState<string | null>(null);
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
   const [sel, setSel] = useState<Sel | null>(null);
+  /** PDF: drag a box on the page (always on for pages without text; elsewhere with this tool or Alt + drag). */
+  const [regionTool, setRegionTool] = useState(false);
+  const [draft, setDraft] = useState<Box | null>(null);
+  const regionToolRef = useRef(false);
+  regionToolRef.current = regionTool;
+  const regionSelRef = useRef(false);
   const [panel, setPanel] = useState<"notes" | "doc" | "settings" | null>(null);
   const [tocOpen, setTocOpen] = useState(false);
   const [notesFilter, setNotesFilter] = useState<NotesFilter>({ ...EMPTY_FILTER, sort: "position" });
   const pendingFocus = useRef<string | null>(openAtNoteId ?? null);
+  const pendingText = useRef(openAtText ?? null);
+  const shownText = useRef(openAtText ?? null);
+  // a PDF draws a page's text only when it is near the screen: the boxes follow as the pages appear
+  const pdfSearch = useRef<{ section: number; text: string; snippet?: string; first: boolean } | null>(null);
+  const pdfTimer = useRef(0);
+  const pdfPageReady = (i: number, d: LoadedDoc) => {
+    const s = pdfSearch.current;
+    if (!s) return;
+    if (s.first && i !== s.section) return;
+    if (!s.first && !revealActive()) {
+      pdfSearch.current = null; // the boxes were put away: stop following
+      return;
+    }
+    window.clearTimeout(pdfTimer.current);
+    pdfTimer.current = window.setTimeout(() => {
+      const first = s.first;
+      s.first = false;
+      const all = Array.from({ length: d.sectionCount() }, (_, k) => d.sectionRoot(k));
+      if (!revealText(all, s.section, s.text, s.snippet, { scroll: first }) && first) toast(t("th.notFound"));
+    }, s.first ? 60 : 160);
+  };
+  /** Go to a found place: at once when its page is drawn, otherwise scroll to the page and box it when it appears. */
+  const goToText = (target: { section: number; text: string; snippet?: string }, d: LoadedDoc) => {
+    if (d.format === "pdf" && !d.sectionRoot(target.section)) {
+      pdfSearch.current = { ...target, first: true };
+      d.locate(target.section)?.scrollIntoView();
+      return;
+    }
+    if (d.format === "pdf") pdfSearch.current = { ...target, first: false };
+    const all = Array.from({ length: d.sectionCount() }, (_, k) => d.sectionRoot(k));
+    if (!revealText(all, target.section, target.text, target.snippet)) toast(t("th.notFound"));
+  };
+  // every place the searched words appear in this book, listed beside the page
+  const [find, setFind] = useState<{ text: string; hits: TextHit[]; current: number; truncated: boolean } | null>(null);
+  const openFind = async (target: { section: number; text: string; snippet?: string }) => {
+    try {
+      const f = await bookIndex.search(target.text, 200, 1, [book.id]);
+      if (f.hits.length < 2) return setFind(null);
+      let cur = f.hits.findIndex((h) => h.section === target.section && (!target.snippet || h.snippet === target.snippet));
+      if (cur < 0) cur = f.hits.findIndex((h) => h.section === target.section);
+      setFind({ text: target.text, hits: f.hits, current: Math.max(0, cur), truncated: f.hits.length >= 200 });
+      window.setTimeout(() => setFind((x) => (x ? { ...x } : x)), 600); // the boxes are drawn a moment later: show their total
+    } catch {
+      setFind(null);
+    }
+  };
+  const roots = () => (doc ? Array.from({ length: doc.sectionCount() }, (_, i) => doc.sectionRoot(i)) : []);
+  const pickHit = (i: number) => {
+    if (!doc || !find) return;
+    const h = find.hits[i];
+    setFind({ ...find, current: i });
+    goToText({ section: h.section, text: find.text, snippet: h.snippet }, doc);
+  };
+  const sectionTitle = (s: number) => {
+    let best = "";
+    const walk = (items: { label: string; section: number; children?: unknown[] }[]) =>
+      items.forEach((it) => {
+        if (it.section <= s && it.section >= 0) best = it.label;
+        if (it.children?.length) walk(it.children as typeof items);
+      });
+    walk((doc?.toc ?? []) as { label: string; section: number; children?: unknown[] }[]);
+    return best || t(doc?.format === "pdf" ? "th.page" : "th.section", { n: s + 1 });
+  };
+  useEffect(() => {
+    if (!find) return;
+    const on = (e: KeyboardEvent) => {
+      if (e.key === "F3") (e.preventDefault(), pickHit((find.current + (e.shiftKey ? -1 : 1) + find.hits.length) % find.hits.length));
+      else if (e.key === "Escape" && !(e.target as HTMLElement)?.closest?.("input, textarea, [contenteditable]")) (setFind(null), clearReveal());
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [find]);
+  // searching again for a passage of the book that is already open
+  useEffect(() => {
+    if (!openAtText || openAtText === shownText.current || !doc) return;
+    shownText.current = openAtText;
+    // no scrolling to the section first: when the words are already on the page nothing should move at all
+    goToText(openAtText, doc);
+    void openFind(openAtText);
+  }, [openAtText, doc]);
   const [progress, setProgress] = useState(book.progress);
+  useReadingTracker(book.id, progress, settings.readingTrack !== false, settings.readingIdle ?? 90);
   const [currentSection, setCurrentSection] = useState(book.location?.section ?? 0);
   /** English (Latin-script) books are typeset with English rules: inter-word justification, hyphenation. */
   const [isEn, setIsEn] = useState(false);
@@ -111,6 +226,18 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
     const chars = new Map<string, Box[]>();
     for (const a of annRef.current) {
       if (isDocNote(a)) continue;
+      if (a.anchor.region) {
+        // A boxed area: the rectangle of the page (PDF) or of the picture (reflowing documents) × the stored fractions.
+        const pageEl = a.anchor.image ? findImage(d.sectionRoot(a.anchor.section), a.anchor.image) : d.locate(a.anchor.section);
+        if (pageEl?.isConnected) {
+          const pr = a.anchor.image ? pictureRect(pageEl, parseSizeKey(a.anchor.image.key)) : pageEl.getBoundingClientRect();
+          const g = a.anchor.region;
+          const b = { x: pr.left - origin.left + g.x * pr.width, y: pr.top - origin.top + g.y * pr.height, w: g.w * pr.width, h: g.h * pr.height };
+          boxes.set(a.id, [b]);
+          ys.set(a.id, b.y);
+        }
+        continue;
+      }
       const root = d.sectionRoot(a.anchor.section);
       const range = root?.isConnected ? resolve(a.anchor, root) : null;
       if (range) {
@@ -180,17 +307,17 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
     let loaded: LoadedDoc | null = null;
     (async () => {
       try {
-        const [bytes, anns] = await Promise.all([readBook(book.id, book.ext), notesStore.forBook(book.id)]);
-        if (cancelled) return;
+        const [opened, anns] = await Promise.all([openBook(book), notesStore.forBook(book.id)]);
+        loaded = opened;
+        if (cancelled) return opened.destroy();
         setAnnotations(anns);
-        loaded = await loadDocument(bytes, book.ext, book.fileName);
         if (cancelled) return loaded.destroy();
         setDoc(loaded);
         // A title the user typed in (origTitle is set) is never overwritten by the file's own title.
         const title = book.origTitle ? book.title : loaded.title;
         if (title !== book.title || loaded.author !== book.author) onBookUpdate(book.id, { title, author: loaded.author });
       } catch (e) {
-        onError(`无法打开《${book.title}》：${e instanceof Error ? e.message : String(e)}`);
+        onError(t("rd.openFail", { title: book.title, err: e instanceof Error ? e.message : String(e) }));
         onClose();
       }
     })();
@@ -204,12 +331,24 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
   useEffect(() => {
     if (!doc || !hostRef.current) return;
     const focusNote = pendingFocus.current ? annRef.current.find((a) => a.id === pendingFocus.current) : undefined;
-    const restore = focusNote && !isDocNote(focusNote) ? { section: focusNote.anchor.section, ratio: 0 } : book.location;
+    const restore = focusNote && !isDocNote(focusNote) ? { section: focusNote.anchor.section, ratio: 0 } : pendingText.current ? { section: pendingText.current.section, ratio: 0 } : book.location;
     let restored = !restore || doc.format === "pdf";
+    if (doc.format === "pdf" && pendingText.current) {
+      const target = pendingText.current;
+      pdfSearch.current = { ...target, first: true };
+      pendingText.current = null;
+      void openFind(target);
+    }
     doc
       .mount(hostRef.current, {
         width: contentWidthRef.current,
         onSectionReady: (i) => {
+          if (doc.format === "pdf") pdfPageReady(i, doc);
+          if (doc.format === "pdf") {
+            // Pages without a text layer (scans) are boxed with a plain drag.
+            const pageEl = doc.locate(i) as HTMLElement | null;
+            pageEl?.classList.toggle("no-text", !doc.sectionRoot(i)?.querySelector("span"));
+          }
           if (!restored && restore && i >= restore.section) {
             restored = true;
             scrollToLocation(restore);
@@ -228,6 +367,19 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
         }
         setLoading(false);
         scheduleGeometry();
+        const target = pendingText.current;
+        if (target && doc.format !== "pdf") {
+          pendingText.current = null;
+          const show = () => {
+            if (!revealText(roots(), target.section, target.text, target.snippet)) toast(t("th.notFound"));
+          };
+          void openFind(target);
+          window.setTimeout(show, 350);
+          // pictures and fonts arriving shift the page a little: settle once more (quietly)
+          window.setTimeout(() => {
+            revealText(roots(), target.section, target.text, target.snippet);
+          }, 1500);
+        }
       })
       .catch((e) => onError(String(e)));
     document.fonts?.ready.then(scheduleGeometry);
@@ -314,12 +466,12 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
   // ---------- persistence ----------
   useEffect(() => {
     if (!dirty.current) return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       dirty.current = false;
-      notesStore.putBook(book.id, annotations).catch((e) => onError(`笔记保存失败：${e}`));
+      notesStore.putBook(book.id, annotations).catch((e) => onError(t("rd.notesSaveFail", { err: String(e) })));
       onBookUpdate(book.id, { annotationCount: annotations.length });
     }, 400);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [annotations, book.id, onBookUpdate, onError]);
 
   useEffect(
@@ -350,9 +502,10 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
     if (Object.keys(last).length) onSettings(last);
   };
   const remove = async (a: Annotation) => {
-    if (a.note.trim() && !(await confirmDialog("删除这条笔记？原文中的标注也会一并移除。"))) return;
+    if (!(await askDeleteNote(a.note))) return;
     mutate((list) => list.filter((x) => x.id !== a.id));
     setActiveId(null);
+    reportDeleted();
   };
 
   // ---------- selection ----------
@@ -361,6 +514,7 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
     const host = hostRef.current;
     const stage = stageRef.current;
     const sc = scrollerRef.current;
+    if (regionSelRef.current) return; // a boxed region is waiting for its colour / note choice
     if (!s || s.isCollapsed || !s.rangeCount || !host || !stage || !sc || !docRef.current) return setSel(null);
     const range = s.getRangeAt(0).cloneRange();
     const startEl = nodeEl(range.startContainer);
@@ -418,7 +572,249 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
     };
   }, [checkSelection]);
 
-  const createFromSelection = (color: string, style: HighlightStyle, withNote: boolean) => {
+  useEffect(() => {
+    regionSelRef.current = !!sel?.anchor.region;
+    if (!sel) setDraft(null); // the dashed outline stays until the box is turned into a note (or dismissed)
+  }, [sel]);
+
+  /** Average colour of the picture under a box → a contrasting dashed-frame colour (undefined when the pixels can't be read). */
+  const sampleFrame = (base: HTMLElement, r: { x: number; y: number; w: number; h: number }, pw: number, ph: number) => {
+    let src: CanvasImageSource | null = null;
+    let sW = 0;
+    let sH = 0;
+    if (base instanceof HTMLImageElement) {
+      src = base;
+      sW = base.naturalWidth;
+      sH = base.naturalHeight;
+    } else {
+      const cv = base.querySelector<HTMLCanvasElement>("canvas.pdf-canvas");
+      if (cv) {
+        src = cv;
+        sW = cv.width;
+        sH = cv.height;
+      }
+    }
+    if (!src || !sW || !sH || !pw || !ph) return undefined;
+    try {
+      const N = 16;
+      const c = document.createElement("canvas");
+      c.width = N;
+      c.height = N;
+      const g = c.getContext("2d", { willReadFrequently: true });
+      if (!g) return undefined;
+      g.drawImage(src, (r.x / pw) * sW, (r.y / ph) * sH, Math.max(1, (r.w / pw) * sW), Math.max(1, (r.h / ph) * sH), 0, 0, N, N);
+      const px = g.getImageData(0, 0, N, N).data;
+      let sr = 0;
+      let sg = 0;
+      let sb = 0;
+      for (let i = 0; i < px.length; i += 4) {
+        sr += px[i];
+        sg += px[i + 1];
+        sb += px[i + 2];
+      }
+      const n = px.length / 4;
+      return contrastFrame(sr / n, sg / n, sb / n);
+    } catch {
+      return undefined; // a picture from another site: keep the default frame colour
+    }
+  };
+
+  /** Crop the boxed area (out of the PDF page canvas, or the picture itself) as a picture: it stands in for the quoted text. */
+  const cropThumb = async (base: HTMLElement, r: { x: number; y: number; w: number; h: number }, pw: number, ph: number) => {
+    let src: CanvasImageSource | null = null;
+    let sW = 0;
+    let sH = 0;
+    if (base instanceof HTMLImageElement) {
+      src = base;
+      sW = base.naturalWidth;
+      sH = base.naturalHeight;
+    } else {
+      const cv = base.querySelector<HTMLCanvasElement>("canvas.pdf-canvas");
+      if (cv) {
+        src = cv;
+        sW = cv.width;
+        sH = cv.height;
+      }
+    }
+    if (!src || !sW || !sH || !pw || !ph) return undefined;
+    const attempt = async (from: CanvasImageSource, fW: number, fH: number) => {
+      const sx = Math.round((r.x / pw) * fW);
+      const sy = Math.round((r.y / ph) * fH);
+      const sw = Math.max(1, Math.round((r.w / pw) * fW));
+      const sh = Math.max(1, Math.round((r.h / ph) * fH));
+      const k = Math.min(1, 1600 / Math.max(sw, sh));
+      const out = document.createElement("canvas");
+      out.width = Math.max(1, Math.round(sw * k));
+      out.height = Math.max(1, Math.round(sh * k));
+      const ctx = out.getContext("2d");
+      if (!ctx) return undefined;
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, out.width, out.height);
+      ctx.drawImage(from, sx, sy, sw, sh, 0, 0, out.width, out.height);
+      const blob = await new Promise<Blob | null>((res) => out.toBlob(res, "image/jpeg", 0.9)); // throws for a picture from another site
+      return blob ? await putImage(blob) : undefined;
+    };
+    try {
+      return await attempt(src, sW, sH);
+    } catch {
+      // A web picture that was never saved locally can't be read back from the page: fetch it natively instead.
+      const url = base instanceof HTMLImageElement ? base.currentSrc || base.src : "";
+      if (!isTauri || !/^https?:/i.test(url)) return undefined;
+      try {
+        const data = await fetchImage(url, book.sourceUrl);
+        const im = new Image();
+        im.src = data;
+        await im.decode();
+        return await attempt(im, im.naturalWidth, im.naturalHeight);
+      } catch {
+        return undefined;
+      }
+    }
+  };
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || !doc) return;
+    const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+    const onDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      const t = e.target as Element;
+      // PDF: a page (always for pages without text; otherwise with the tool or Alt). Other formats: a picture, straight away.
+      let base: HTMLElement | null;
+      if (isPdf) {
+        base = t.closest<HTMLElement>(".pdf-page");
+        if (!base || !(base.classList.contains("no-text") || e.altKey || regionToolRef.current)) return;
+      } else {
+        base = t.closest<HTMLElement>(PICTURE_SELECTOR);
+        if (!base || !host.contains(base)) return;
+      }
+      e.preventDefault(); // no text selection / native picture drag starts
+      window.getSelection()?.removeAllRanges();
+      setSel(null);
+      const target = base;
+      // An SVG <image> (covers, plates) has no natural size of its own: load the same picture to measure and crop it.
+      let probe: HTMLImageElement | null = null;
+      if (!isPdf && !(target instanceof HTMLImageElement)) {
+        const href = pictureHref(target);
+        if (href) {
+          probe = new Image();
+          probe.src = href;
+        }
+      }
+      const natOf = () =>
+        target instanceof HTMLImageElement ? { w: target.naturalWidth, h: target.naturalHeight } : probe?.naturalWidth ? { w: probe.naturalWidth, h: probe.naturalHeight } : null;
+      const rectOf = () => (isPdf ? target.getBoundingClientRect() : pictureRect(target, natOf()));
+      // Work in client coordinates (corrected for scrolling while dragging) and convert with the picture's FINAL
+      // rectangle, so a picture whose size is learned a moment later (SVG images) still gets exact fractions.
+      const cx0 = e.clientX;
+      const cy0 = e.clientY;
+      const scroll0 = scrollerRef.current?.scrollTop ?? 0;
+      let end: { x: number; y: number } | null = null;
+      const relRect = (pr: { left: number; top: number; width: number; height: number }) => {
+        const dy = (scrollerRef.current?.scrollTop ?? 0) - scroll0;
+        const ex = end?.x ?? cx0;
+        const ey = end?.y ?? cy0;
+        const xl = clamp(Math.min(cx0, ex) - pr.left, 0, pr.width);
+        const xr = clamp(Math.max(cx0, ex) - pr.left, 0, pr.width);
+        const yt = clamp(Math.min(cy0 - dy, ey) - pr.top, 0, pr.height);
+        const yb = clamp(Math.max(cy0 - dy, ey) - pr.top, 0, pr.height);
+        return { x: xl, y: yt, w: xr - xl, h: yb - yt };
+      };
+      let moved = false;
+      const onMove = (ev: MouseEvent) => {
+        end = { x: ev.clientX, y: ev.clientY };
+        if (!moved && Math.abs(ev.clientX - cx0) + Math.abs(ev.clientY - cy0) < 8) return;
+        moved = true;
+        const pr = rectOf();
+        const r = relRect(pr);
+        const so = stageRef.current?.getBoundingClientRect();
+        if (so) setDraft({ x: pr.left - so.left + r.x, y: pr.top - so.top + r.y, w: r.w, h: r.h });
+      };
+      const onUp = async () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        if (probe && !probe.naturalWidth) await probe.decode().catch(() => {}); // learn the picture's size before measuring
+        const pr = rectOf();
+        const r = relRect(pr);
+        if (!moved || r.w < 14 || r.h < 14) return setDraft(null); // a plain click (selects an existing box instead)
+        // The drag must not also count as a click on a link around the picture.
+        window.addEventListener("click", (ev) => (ev.stopPropagation(), ev.preventDefault()), { capture: true, once: true });
+        const so = stageRef.current?.getBoundingClientRect();
+        const sc = scrollerRef.current;
+        if (!so || !sc) return;
+        const region = { x: r.x / pr.width, y: r.y / pr.height, w: r.w / pr.width, h: r.h / pr.height };
+        const thumb = await cropThumb(probe?.naturalWidth ? probe : target, r, pr.width, pr.height);
+        const frame = sampleFrame(probe?.naturalWidth ? probe : target, r, pr.width, pr.height);
+        const top = Math.round(region.y * 10000);
+        const sectionEl = isPdf ? target : target.closest<HTMLElement>("[data-section]");
+        const section = isPdf ? Number(target.dataset.page) : Number(sectionEl?.dataset.section ?? 0);
+        const image = !isPdf && sectionEl ? { index: pictureElements(sectionEl).indexOf(target), key: sizeKey(natOf()) } : undefined;
+        // reflowing text: order by position in the section = the picture's order, then the box height
+        const start = image ? image.index * 100000 + top : top;
+        const anchor: TextAnchor = { section, start, end: start + 1, exact: "", prefix: "", suffix: "", region, ...(thumb ? { thumb } : {}), ...(frame ? { frame } : {}), ...(image ? { image } : {}) };
+        const bx = pr.left - so.left + r.x;
+        const by = pr.top - so.top + r.y;
+        const half = Math.min(190, so.width / 2);
+        const below = by - (sc.getBoundingClientRect().top - so.top) < 150;
+        setSel({ anchor, x: Math.min(Math.max(bx + r.w / 2, half), so.width - half), y: below ? by + r.h + 10 : by - 10, below });
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    };
+    host.addEventListener("mousedown", onDown, true);
+    return () => host.removeEventListener("mousedown", onDown, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc, isPdf]);
+
+  // Region notes saved without a picture (the picture couldn't be read at the time) get one as soon as it can be made.
+  const thumbTried = useRef(new Set<string>());
+  useEffect(() => {
+    const d = docRef.current;
+    if (!d) return;
+    for (const a of annotations) {
+      const g = a.anchor.region;
+      if (!g || (a.anchor.thumb && a.anchor.frame) || thumbTried.current.has(a.id) || !geo.boxes.has(a.id)) continue;
+      thumbTried.current.add(a.id);
+      void (async () => {
+        const retryLater = () => void thumbTried.current.delete(a.id);
+        let base: HTMLElement | null = null;
+        let pw = 0;
+        let ph = 0;
+        if (a.anchor.image) {
+          const el = findImage(d.sectionRoot(a.anchor.section), a.anchor.image);
+          if (el instanceof HTMLImageElement) {
+            if (!el.complete || !el.naturalWidth) return retryLater();
+            const r = el.getBoundingClientRect();
+            [base, pw, ph] = [el, r.width, r.height];
+          } else if (el) {
+            const href = pictureHref(el);
+            if (!href) return;
+            const probe = new Image();
+            probe.src = href;
+            try {
+              await probe.decode();
+            } catch {
+              return;
+            }
+            [base, pw, ph] = [probe, probe.naturalWidth, probe.naturalHeight];
+          }
+        } else {
+          const el = d.locate(a.anchor.section) as HTMLElement | null;
+          if (!el?.querySelector("canvas.pdf-canvas")) return retryLater(); // the page isn't drawn yet
+          const r = el.getBoundingClientRect();
+          [base, pw, ph] = [el, r.width, r.height];
+        }
+        if (!base || !pw || !ph) return;
+        const px = { x: g.x * pw, y: g.y * ph, w: g.w * pw, h: g.h * ph };
+        const thumb = a.anchor.thumb ?? (await cropThumb(base, px, pw, ph));
+        const frame = a.anchor.frame ?? sampleFrame(base, px, pw, ph);
+        if (thumb !== a.anchor.thumb || frame !== a.anchor.frame) update(a.id, { anchor: { ...a.anchor, ...(thumb ? { thumb } : {}), ...(frame ? { frame } : {}) } });
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geo, annotations]);
+
+  const createFromSelection = (color: string, style: HighlightStyle, withNote: boolean, note = "") => {
     if (!sel) return;
     const now = Date.now();
     const a: Annotation = {
@@ -426,7 +822,7 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
       anchor: sel.anchor,
       color,
       style,
-      note: "",
+      note,
       tags: [],
       side: "right",
       createdAt: now,
@@ -443,6 +839,7 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
 
   const onStageClick = (e: React.MouseEvent) => {
     if ((e.target as Element).closest(".note-card, .sel-toolbar, .marker, a")) return;
+    if (sel?.anchor.region) setSel(null);
     const s = window.getSelection();
     if (s && !s.isCollapsed) return;
     const r = stageRef.current!.getBoundingClientRect();
@@ -459,6 +856,11 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
   // ---------- keyboard ----------
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g" && isPdf) {
+        e.preventDefault();
+        setJump("");
+        return;
+      }
       const typing = (e.target as Element).closest?.("textarea, input");
       if (e.key === "Escape") {
         // Writing a whole-document note: the first Esc only leaves the field, so typed text isn't lost.
@@ -545,7 +947,7 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
     () =>
       annotations.map((a) => {
         const b = geo.boxes.get(a.id);
-        if (!b) return null;
+        if (!b || a.anchor.region) return null; // a boxed area is only a dashed frame (own layer): no tint over the picture
         const sw = swatch(a.color);
         const fill = dark ? sw.dark : sw.light;
         const stroke = dark ? sw.dark : sw.ink;
@@ -586,6 +988,21 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
     [annotations, geo, activeId, dark, fontPx, contentX],
   );
 
+  /** Dashed frames of boxed areas: normal blending (the tint layer multiplies), pale contrasting line over a dark halo. */
+  const regionFrames = annotations.map((a) => {
+    const b = a.anchor.region ? geo.boxes.get(a.id) : undefined;
+    if (!b || a.style === "none" && a.id !== activeId) return null;
+    const d = regionPath(b[0]);
+    const line = a.anchor.frame?.c ?? "hsl(38 55% 78%)";
+    const halo = a.anchor.frame?.h ?? "rgba(0,0,0,0.35)";
+    return (
+      <g key={a.id} className={`region-frame ${a.id === activeId ? "active" : ""}`} fill="none" strokeLinejoin="round">
+        <path d={d} stroke={halo} strokeWidth={a.id === activeId ? 3 : 2.6} />
+        <path d={d} stroke={line} strokeWidth={a.id === activeId ? 1.5 : 1.1} />
+      </g>
+    );
+  });
+
   /** Every margin card is tied to its passage with the same curve + dot; the active one is just emphasised. */
   const connectors = (() => {
     if (!showMargins) return null;
@@ -617,37 +1034,48 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
   }, [doc]);
   const chapterOf = useCallback(
     (section: number) => {
-      let label = isPdf ? `第 ${section + 1} 页` : "正文";
+      let label = isPdf ? t("rd.page", { n: section + 1 }) : t("rd.body");
       for (const t of flatToc) if (t.section <= section) label = t.label;
       return label;
     },
     [flatToc, isPdf],
   );
   const currentChapter = chapterOf(currentSection);
+  const pageCount = doc?.sectionCount() ?? 0;
+  const pageText = t("rd.pageText", { n: currentSection + 1, total: pageCount || "?" });
+  const subtitle = isPdf ? (flatToc.length ? `${currentChapter} · ${pageText}` : pageText) : currentChapter;
+  /** "Go to page" box (Ctrl + G, or click the page number). */
+  const [jump, setJump] = useState<string | null>(null);
+  const submitJump = () => {
+    const n = Math.round(Number(jump));
+    if (jump && Number.isFinite(n) && n >= 1) goTo(Math.min(n, pageCount || n) - 1);
+    setJump(null);
+  };
 
   const exportMarkdown = async () => {
     if (!doc) return;
     const sorted = annotations.filter((a) => !isDocNote(a)).sort((a, b) => a.anchor.section - b.anchor.section || a.anchor.start - b.anchor.start);
     const lines = [`# ${shownTitle}`, ""];
-    if (doc.author) lines.push(`作者：${doc.author}`, "");
-    lines.push(`> 导出自「墨边」· ${new Date().toLocaleString()} · 共 ${annotations.length} 条笔记`, "");
+    if (doc.author) lines.push(t("rd.author", { name: doc.author }), "");
+    lines.push(`> ${t("export.header", { when: fmtDateTime(new Date()), n: annotations.length })}`, "");
     if (docNotes.length) {
-      lines.push("## 整体笔记", "");
+      lines.push(`## ${t("export.docNotes")}`, "");
       for (const n of [...docNotes].sort((a, b) => a.createdAt - b.createdAt)) lines.push(n.note.trim(), ...(n.images?.length ? ["", ...imageEmbeds(n.images)] : []), "", `<sub>${new Date(n.createdAt).toLocaleDateString()}</sub>`, "", "---", "");
     }
     let ch = "";
     for (const a of sorted) {
       const c = chapterOf(a.anchor.section);
       if (c !== ch) lines.push(`## ${(ch = c)}`, "");
-      lines.push(`> ${a.anchor.exact.trim().replace(/\n+/g, "\n> ")}`, "");
+      if (a.anchor.region) lines.push(...(a.anchor.thumb ? [...imageEmbeds([a.anchor.thumb]), ""] : []), a.anchor.image ? `> ${t("kind.imageRegion")}` : `> ${t("kind.pageRegion", { page: a.anchor.section + 1 })}`, "");
+      else lines.push(`> ${a.anchor.exact.trim().replace(/\n+/g, "\n> ")}`, "");
       if (a.note.trim()) lines.push(a.note.trim(), "");
       if (a.images?.length) lines.push(...imageEmbeds(a.images), "");
       lines.push(`<sub>${swatch(a.color).name} · ${new Date(a.updatedAt).toLocaleDateString()}</sub>`, "", "---", "");
     }
     try {
-      await exportTextFile(`${shownTitle.replace(/[\\/:*?"<>|]/g, "_")} - 笔记.md`, lines.join("\n"), imageIdsOf(annotations.map((note) => ({ note }))));
+      await exportTextFile(`${t("rd.fileSuffix", { title: shownTitle.replace(/[\\/:*?"<>|]/g, "_") })}.md`, lines.join("\n"), imageIdsOf(annotations.map((note) => ({ note }))));
     } catch (e) {
-      onError(`导出失败：${e}`);
+      onError(t("rd.exportFail", { err: String(e) }));
     }
   };
 
@@ -668,7 +1096,7 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
 
   // ---------- whole-document notes ----------
   const docNotes = useMemo(() => annotations.filter(isDocNote), [annotations]);
-  const noun = book.format === "md" || book.format === "html" ? "整篇文章" : "整本书";
+  const noun = book.format === "md" || book.format === "html" ? t("noun.article") : t("noun.book");
   const addDocNote = (text: string) => {
     const now = Date.now();
     mutate((list) => [
@@ -677,8 +1105,9 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
     ]);
   };
   const removeDocNote = async (id: string) => {
-    if (!(await confirmDialog("删除这条整体笔记？"))) return;
+    if (!(await confirmTrash(t("tr.confirmNote")))) return;
     mutate((list) => list.filter((x) => x.id !== id));
+    reportDeleted();
   };
 
   const hits = useMemo<NoteHit[]>(() => annotations.map((note) => ({ bookId: book.id, note })), [annotations, book.id]);
@@ -717,13 +1146,30 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
       className={`reader theme-${settings.theme} mode-${L.immersive ? "immersive" : L.mode}`}
     >
       {zoomHint && <div className="zoom-hint">{Math.round(settings.zoom * 100)}%</div>}
+      {find && <FindPanel text={find.text} hits={find.hits} current={find.current} total={revealCount()} truncated={find.truncated} titleOf={sectionTitle} onPick={pickHit} onClose={() => (setFind(null), clearReveal())} />}
+      {jump !== null && (
+        <div className="jump-box" onMouseDown={(e) => e.stopPropagation()}>
+          <input
+            autoFocus
+            inputMode="numeric"
+            value={jump}
+            placeholder={t("rd.jumpPlaceholder", { n: pageCount || "?" })}
+            onChange={(e) => setJump(e.target.value.replace(/[^\d]/g, ""))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitJump();
+              if (e.key === "Escape") (e.stopPropagation(), setJump(null));
+            }}
+            onBlur={() => setJump(null)}
+          />
+        </div>
+      )}
       <header className="topbar">
-        <button className="icon-btn" title="返回书库" onClick={onClose}>
+        <button className="icon-btn" title={t("rd.back")} onClick={onClose}>
           <ChevronLeft size={20} />
         </button>
         <button
           className={`icon-btn ${tocOpen ? "on" : ""}`}
-          title="目录"
+          title={t("rd.toc")}
           onClick={() => {
             setPanel(null);
             setTocOpen((v) => !v);
@@ -733,23 +1179,38 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
         </button>
         <div className="topbar-title">
           <span className="t">{shownTitle}</span>
-          <span className="c">{currentChapter}</span>
+          {isPdf ? (
+            <button className="c page-jump" title={t("rd.jumpTip")} onClick={() => setJump("")}>
+              {subtitle}
+            </button>
+          ) : (
+            <span className="c">{subtitle}</span>
+          )}
         </div>
         <div className="topbar-actions">
           {book.sourceUrl && (
-            <button className="icon-btn" title={`查看原网页：${book.sourceUrl}`} onClick={() => openExternal(book.sourceUrl!)}>
+            <button className="icon-btn" title={t("rd.openOriginal", { url: book.sourceUrl })} onClick={() => openExternal(book.sourceUrl!)}>
               <ExternalLink size={17} />
             </button>
           )}
-          <button className={`icon-btn ${panel === "doc" ? "on" : ""}`} title={`${noun}的整体笔记、评分与阅读状态`} onClick={() => setPanel(panel === "doc" ? null : "doc")}>
+          {book.format !== "txt" && (
+            <button
+              className={`icon-btn ${regionTool ? "on" : ""}`}
+              title={isPdf ? (regionTool ? t("rd.region.pdfOn") : t("rd.region.pdf")) : regionTool ? t("rd.region.docOn") : t("rd.region.doc")}
+              onClick={() => setRegionTool((v) => !v)}
+            >
+              <BoxSelect size={18} />
+            </button>
+          )}
+          <button className={`icon-btn ${panel === "doc" ? "on" : ""}`} title={t("doc.panelTip", { noun })} onClick={() => setPanel(panel === "doc" ? null : "doc")}>
             <StickyNote size={18} />
             {docNotes.length > 0 && <span className="badge">{docNotes.length}</span>}
           </button>
-          <button className={`icon-btn ${panel === "notes" ? "on" : ""}`} title="本书笔记" onClick={() => setPanel(panel === "notes" ? null : "notes")}>
+          <button className={`icon-btn ${panel === "notes" ? "on" : ""}`} title={t("rd.notes")} onClick={() => setPanel(panel === "notes" ? null : "notes")}>
             <NotebookPen size={18} />
             {annotations.length > 0 && <span className="badge">{annotations.length}</span>}
           </button>
-          <button className={`icon-btn ${panel === "settings" ? "on" : ""}`} title="阅读设置" onClick={() => setPanel(panel === "settings" ? null : "settings")}>
+          <button className={`icon-btn ${panel === "settings" ? "on" : ""}`} title={t("rd.settings")} onClick={() => setPanel(panel === "settings" ? null : "settings")}>
             <Type size={18} />
           </button>
         </div>
@@ -759,8 +1220,8 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
         <div className="toc-backdrop" onMouseDown={() => setTocOpen(false)}>
           <aside className="toc-sidebar" onMouseDown={(e) => e.stopPropagation()}>
             <div className="panel-title">
-              <span>目录</span>
-              <button className="icon-btn" title="收起目录" onClick={() => setTocOpen(false)}>
+              <span>{t("rd.toc")}</span>
+              <button className="icon-btn" title={t("rd.tocCollapse")} onClick={() => setTocOpen(false)}>
                 <X size={16} />
               </button>
             </div>
@@ -782,9 +1243,9 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
             {panel === "notes" && (
               <div className="panel notes-panel wide">
                 <div className="panel-title">
-                  <span>本书笔记 · {annotations.length}</span>
-                  <button className="panel-btn" onClick={exportMarkdown} disabled={!annotations.length} title="导出为 Markdown">
-                    <Download size={14} /> 导出
+                  <span>{t("rd.notesCount", { n: annotations.length })}</span>
+                  <button className="panel-btn" onClick={exportMarkdown} disabled={!annotations.length} title={t("rd.exportMd")}>
+                    <Download size={14} /> {t("rd.export")}
                   </button>
                 </div>
                 <NotesBrowser
@@ -812,16 +1273,17 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
           <div className="doc-modal" onMouseDown={(e) => e.stopPropagation()}>
             <header className="doc-modal-head">
               <div>
-                <div className="doc-modal-kicker">整体笔记</div>
+                <div className="doc-modal-kicker">{t("rd.docKicker")}</div>
                 <h2>{shownTitle}</h2>
               </div>
               <span className="nb-spacer" />
               <ReadingMeta book={book} onChange={(p) => onBookUpdate(book.id, p)} />
-              <button className="icon-btn" title="关闭（Esc）" onClick={() => setPanel(null)}>
+              <button className="icon-btn" title={t("rd.closeEsc")} onClick={() => setPanel(null)}>
                 <X size={20} />
               </button>
             </header>
             <div className="doc-modal-body">
+              <ReadingStats bookId={book.id} progress={progress} enabled={settings.readingTrack !== false} />
               <DocNotes
                 variant="panel"
                 noun={noun}
@@ -839,7 +1301,7 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
         </div>
       )}
 
-      <div className="scroller" ref={scrollerRef} onScroll={onScroll} onClick={onStageClick}>
+      <div className={`scroller ${regionTool ? "region-tool" : ""}`} ref={scrollerRef} onScroll={onScroll} onClick={onStageClick}>
         <div
           className={`stage ${isEn ? "lang-en" : ""}`}
           ref={stageRef}
@@ -863,6 +1325,15 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
           <svg className="overlay" width={stageW} height={stageH} aria-hidden>
             {overlay}
             {connectors}
+          </svg>
+          <svg className="overlay frames" width={stageW} height={stageH} aria-hidden>
+            {regionFrames}
+            {draft && (
+              <g className="region-draft" fill="none" strokeLinejoin="round">
+                <rect x={draft.x} y={draft.y} width={draft.w} height={draft.h} rx={5} stroke="rgba(0,0,0,0.35)" strokeWidth={2.6} />
+                <rect x={draft.x} y={draft.y} width={draft.w} height={draft.h} rx={5} stroke="#f3e3b8" strokeWidth={1.2} />
+              </g>
+            )}
           </svg>
 
           {showMargins && annotations.some(isDocNote) && (
@@ -940,6 +1411,8 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
               onStyle={(s) => (s === settings.lastStyle ? onSettings({ lastStyle: "none" }) : createFromSelection(settings.lastColor, s, false))}
               onPick={(c) => createFromSelection(c, settings.lastStyle === "none" ? "highlight" : settings.lastStyle, false)}
               onNote={() => createFromSelection(settings.lastColor, settings.lastStyle, true)}
+              onTodo={() => createFromSelection(settings.lastColor, settings.lastStyle === "none" ? "highlight" : settings.lastStyle, true, "- [ ] ")}
+              hideCopy={!!sel.anchor.region}
               onCopy={() => {
                 navigator.clipboard?.writeText(sel.anchor.exact).catch(() => {});
                 window.getSelection()?.removeAllRanges();
@@ -976,7 +1449,7 @@ export function Reader({ book, openAtNoteId, settings, onSettings, onBookUpdate,
       <div className="progress" style={{ ["--p" as string]: progress }}>
         <span>{Math.round(progress * 100)}%</span>
       </div>
-      {loading && <div className="loading">正在排版…</div>}
+      {loading && <div className="loading">{t("rd.layouting")}</div>}
     </div>
   );
 }
