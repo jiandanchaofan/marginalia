@@ -119,6 +119,8 @@ export const slotItems = (slot: SlotName): SlotItem[] => all("slots").filter((s:
 export const pageItems = (): PageItem[] => all("pages");
 /** The module that provides a document, by its id. */
 export const moduleOfDoc = (docId: string): string | undefined => [...active].find(([, p]) => p.docs.some((d) => docId.startsWith(d.prefix)))?.[0];
+/** A short name for a module's document ("WEB"), or "" when its module does not say. */
+export const docShortLabel = (docId: string): string => docProvider(docId)?.label?.(docId) ?? "";
 export const docProvider = (id: string) => docProviders().find((d) => id.startsWith(d.prefix));
 
 // ---- the reading position, passed on to modules at a calm pace

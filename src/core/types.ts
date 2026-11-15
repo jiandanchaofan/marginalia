@@ -41,6 +41,8 @@ export interface TextAnchor {
   image?: { index: number; key: string };
   /** Colours of the dashed frame drawn around the region, chosen to contrast with the picture behind it (`c` = line, `h` = halo). */
   frame?: { c: string; h: string };
+  /** A note on whole verses of a module's text (made from the verse number, or by selecting the verse in full): shown in every translation. */
+  whole?: boolean;
 }
 
 export const isRegionAnchor = (a: Pick<TextAnchor, "region">) => !!a.region;
@@ -63,6 +65,8 @@ export interface Annotation {
   canonicalRef?: string;
   /** Id of the module that wrote the note (e.g. "org.marginalia.bible"). Notes stay readable as plain cards without it. */
   sourceModule?: string;
+  /** Only while a note is on screen in another translation than the one it was written in: that document's id. Never stored. */
+  fromDoc?: string;
   createdAt: number;
   updatedAt: number;
 }

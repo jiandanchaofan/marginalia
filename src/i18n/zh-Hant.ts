@@ -1441,6 +1441,7 @@ export const zhHant: Record<Key, string> & Record<string, string> = {
   "mod.hint": "模組是為特定族群準備的專業功能，預設關閉。關閉後，它寫過的筆記仍然保留，會顯示為一般筆記。",
   "mod.failed": "沒能啟動：{err}",
   "pal.refs": "經文",
+  "note.fromDoc": "來自 {name}",
   "tp.back": "回到筆記列表",
   "tp.stat": "{notes} 則筆記 · {books} 本書 · {tasks} 個待辦（{done} 已完成）",
   "tp.withKids": "包含子標籤",

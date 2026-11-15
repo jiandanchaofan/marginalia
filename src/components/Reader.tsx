@@ -1,5 +1,7 @@
 import { clearReveal, revealActive, revealCount, revealText } from "../search/reveal";
-import { noteOrigin } from "../host/refs";
+import { SlotHost } from "../host/SlotHost";
+import { anchorOfRef, noteOrigin } from "../host/refs";
+import { docProvider, moduleOfDoc } from "../host/registry";
 import { bookIndex, type TextHit } from "../search/backend";
 import { FindPanel } from "../search/FindPanel";
 import { askDeleteNote, reportDeleted } from "../trash/delete";
@@ -184,6 +186,20 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
     return () => window.removeEventListener("keydown", on);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [find]);
+  // a module asks for a note on a whole verse (from its verse bubble)
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ docId: string; ref: string }>).detail;
+      const document_ = docRef.current;
+      if (d.docId !== book.id || !document_) return;
+      const anchor = anchorOfRef(document_, d.ref);
+      if (anchor) createFromAnchor(anchor, settings.lastColor, settings.lastStyle, true);
+    };
+    window.addEventListener("reader:make-verse-note", on);
+    return () => window.removeEventListener("reader:make-verse-note", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book.id, settings.lastColor, settings.lastStyle]);
+
   /** Scroll to a place in a module's document and mark it for a moment. */
   const goToPlace = (p: { section: number; fragment?: string }) => {
     const d = docRef.current;
@@ -390,6 +406,7 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
         }
         setLoading(false);
         scheduleGeometry();
+        void addForeign(doc).catch(() => {});
         const place = pendingRef.current;
         if (place) {
           pendingRef.current = null;
@@ -496,20 +513,57 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
     if (!dirty.current) return;
     const timer = setTimeout(() => {
       dirty.current = false;
-      notesStore.putBook(book.id, annotations).catch((e) => onError(t("rd.notesSaveFail", { err: String(e) })));
-      onBookUpdate(book.id, { annotationCount: annotations.length });
+      const own = annotations.filter((a) => !foreign.current.has(a.id));
+      notesStore.putBook(book.id, own).catch((e) => onError(t("rd.notesSaveFail", { err: String(e) })));
+      syncForeign(annotations);
+      onBookUpdate(book.id, { annotationCount: own.length });
     }, 400);
     return () => clearTimeout(timer);
   }, [annotations, book.id, onBookUpdate, onError]);
 
   useEffect(
     () => () => {
-      if (dirty.current) notesStore.putBook(book.id, annRef.current).catch(() => {});
+      if (dirty.current) {
+        notesStore.putBook(book.id, annRef.current.filter((a) => !foreign.current.has(a.id))).catch(() => {});
+        syncForeign(annRef.current);
+      }
       persistPosition();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+
+  // Notes written in another translation of the same text that are on whole verses: shown here too, but they belong to
+  // the document they were written in. What is edited here is saved back there, with its own anchor.
+  const foreign = useRef(new Map<string, { bookId: string; original: Annotation }>());
+  const syncForeign = (list: Annotation[]) => {
+    for (const [id, f] of [...foreign.current]) {
+      const cur = list.find((a) => a.id === id);
+      if (!cur) {
+        foreign.current.delete(id);
+        void notesStore.remove(f.bookId, id);
+      } else if (cur.updatedAt !== f.original.updatedAt) {
+        const { fromDoc: _from, ...rest } = cur;
+        const saved: Annotation = { ...rest, anchor: f.original.anchor };
+        foreign.current.set(id, { bookId: f.bookId, original: saved });
+        void notesStore.update(f.bookId, saved);
+      }
+    }
+  };
+  const addForeign = async (d: LoadedDoc) => {
+    const prefix = docProvider(book.id)?.refPrefix?.(book.id);
+    if (!prefix) return;
+    const mine = moduleOfDoc(book.id);
+    const hits = (await notesStore.byRef(prefix)).filter((h) => h.bookId !== book.id && h.note.anchor.whole && h.note.canonicalRef && h.note.sourceModule === mine);
+    const shown: Annotation[] = [];
+    for (const h of hits) {
+      const anchor = anchorOfRef(d, h.note.canonicalRef!);
+      if (!anchor) continue;
+      foreign.current.set(h.note.id, { bookId: h.bookId, original: h.note });
+      shown.push({ ...h.note, anchor, fromDoc: h.bookId });
+    }
+    if (shown.length) setAnnotations((list) => [...list.filter((a) => !foreign.current.has(a.id)), ...shown]);
+  };
 
   const mutate = (fn: (list: Annotation[]) => Annotation[]) => {
     dirty.current = true;
@@ -844,22 +898,26 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
 
   const createFromSelection = (color: string, style: HighlightStyle, withNote: boolean, note = "") => {
     if (!sel) return;
+    createFromAnchor(sel.anchor, color, style, withNote, note);
+    window.getSelection()?.removeAllRanges();
+    setSel(null);
+  };
+  const createFromAnchor = (anchor: TextAnchor, color: string, style: HighlightStyle, withNote: boolean, note = "") => {
     const now = Date.now();
+    const { whole, ...origin } = noteOrigin(book.id, docRef.current?.sectionRoot(anchor.section) ?? null, anchor);
     const a: Annotation = {
       id: uid(),
-      anchor: sel.anchor,
+      anchor: whole || anchor.whole ? { ...anchor, whole: true } : anchor,
       color,
       style,
       note,
       tags: [],
       side: "right",
-      ...noteOrigin(book.id, docRef.current?.sectionRoot(sel.anchor.section) ?? null, sel.anchor),
+      ...origin,
       createdAt: now,
       updatedAt: now,
     };
     mutate((list) => [...list, a]);
-    window.getSelection()?.removeAllRanges();
-    setSel(null);
     // A quick color-click stays lightweight; only "笔记" opens the editor.
     setActiveId(withNote ? a.id : null);
     setFocusNoteId(withNote ? a.id : null);
@@ -867,6 +925,14 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
   };
 
   const onStageClick = (e: React.MouseEvent) => {
+    // a verse number of a module's document (an empty element marked data-ref-click): tell the module where it is
+    const marker = (e.target as Element).closest?.("[data-ref-click]");
+    const refEl = marker?.closest<HTMLElement>("[data-ref]");
+    if (marker && refEl?.dataset.ref) {
+      const r = marker.getBoundingClientRect();
+      window.dispatchEvent(new CustomEvent("reader:ref-click", { detail: { docId: book.id, ref: refEl.dataset.ref, x: r.left, y: r.bottom } }));
+      return;
+    }
     if ((e.target as Element).closest(".note-card, .sel-toolbar, .marker, a")) return;
     if (sel?.anchor.region) setSel(null);
     const s = window.getSelection();
@@ -1175,6 +1241,7 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
       className={`reader theme-${settings.theme} mode-${L.immersive ? "immersive" : L.mode}`}
     >
       {zoomHint && <div className="zoom-hint">{Math.round(settings.zoom * 100)}%</div>}
+      <SlotHost slot="reader.overlay" ctx={{ docId: book.id }} />
       {find && <FindPanel text={find.text} hits={find.hits} current={find.current} total={revealCount()} truncated={find.truncated} titleOf={sectionTitle} onPick={pickHit} onClose={() => (setFind(null), clearReveal())} />}
       {jump !== null && (
         <div className="jump-box" onMouseDown={(e) => e.stopPropagation()}>
@@ -1217,6 +1284,7 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
           )}
         </div>
         <div className="topbar-actions">
+          <SlotHost slot="reader.topbar" ctx={{ docId: book.id }} />
           {book.sourceUrl && (
             <button className="icon-btn" title={t("rd.openOriginal", { url: book.sourceUrl })} onClick={() => openExternal(book.sourceUrl!)}>
               <ExternalLink size={17} />

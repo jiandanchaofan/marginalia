@@ -61,6 +61,10 @@ export interface DocProvider {
    * e.g. ["JHN.3.16", "JHN.3.17"] -> "JHN.3.16-17". Without it a single ref is used as it is.
    */
   joinRefs?(refs: string[]): string;
+  /** The start of the canonical positions that appear in a document ("JHN" for John): notes written elsewhere at such positions are looked up for it. */
+  refPrefix?(docId: string): string;
+  /** A short name for a document, for "from WEB" on a note written in it. */
+  label?(docId: string): string;
 }
 
 // ---------------------------------------------------------------- references in any text
@@ -100,7 +104,7 @@ export interface RefRecognizer {
 
 // ---------------------------------------------------------------- places in the interface
 
-export type SlotName = "reader.topbar" | "reader.selection" | "reader.drawer" | "notes.sidebar";
+export type SlotName = "reader.topbar" | "reader.selection" | "reader.drawer" | "reader.overlay" | "notes.sidebar";
 
 /** What a slot component is told about the place it sits in. */
 export interface SlotContext {

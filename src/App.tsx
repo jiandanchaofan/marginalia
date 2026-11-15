@@ -63,6 +63,8 @@ export default function App() {
   const [openId, setOpenId] = useState<string | null>(null);
   // a document a module provides (no file, not on the shelf): kept only while it is open
   const [virtualBook, setVirtualBook] = useState<BookRecord | null>(null);
+  // bumped to open a module document again from scratch (its settings changed); the position is kept in the record
+  const [virtualRev, setVirtualRev] = useState(0);
   // where to land in the module document being opened (a verse): the reader goes there once it is laid out
   const [openAt, setOpenAt] = useState<{ docId: string; section: number; fragment?: string; seq: number } | null>(null);
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
@@ -424,8 +426,13 @@ export default function App() {
       const d = (e as CustomEvent<{ docId: string; title?: string; at?: { section: number; fragment?: string } }>).detail;
       if (d?.docId && isVirtualDoc(d.docId)) openVirtual(d.docId, d.title ?? d.docId, d.at);
     };
+    const reload = () => setVirtualRev((n) => n + 1);
     window.addEventListener("reader:open-doc", on);
-    return () => window.removeEventListener("reader:open-doc", on);
+    window.addEventListener("reader:reload-doc", reload);
+    return () => {
+      window.removeEventListener("reader:open-doc", on);
+      window.removeEventListener("reader:reload-doc", reload);
+    };
   }, [openVirtual]);
 
   const openNote = (hit: NoteHit) => {
@@ -574,7 +581,7 @@ export default function App() {
     <>
       {openBook ? (
         <Reader
-          key={openBook.id}
+          key={`${openBook.id}:${virtualRev}`}
           book={openBook}
           openAtNoteId={focusNoteId}
           openAtRef={openAt && openAt.docId === openBook.id ? openAt : null}

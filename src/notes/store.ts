@@ -445,6 +445,14 @@ export const notesStore = {
     notesChanged();
   },
 
+  /** Notes at a canonical position: exactly `ref`, a range that starts there, or anything inside it ("JHN" finds all of John). */
+  async byRef(ref: string): Promise<NoteHit[]> {
+    const r = ref.trim();
+    if (!r) return [];
+    if (isTauri) return invoke<NoteHit[]>("notes_by_ref", { canonicalRef: r });
+    return browserAll().filter(({ note }) => !!note.canonicalRef && (note.canonicalRef === r || note.canonicalRef.startsWith(r + ".") || note.canonicalRef.startsWith(r + "-")));
+  },
+
   /** Notes by id, in the order asked for (unknown ids skipped). */
   async byIds(ids: string[]): Promise<NoteHit[]> {
     if (!ids.length) return [];

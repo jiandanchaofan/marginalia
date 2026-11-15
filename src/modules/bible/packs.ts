@@ -15,9 +15,9 @@ export interface Pack {
   books: Record<string, [number, number, number, string][]>;
 }
 
-export const BUNDLED: { id: string; name: string; lang: string; url: string }[] = [
-  { id: "cuv-hans", name: "和合本（简体）", lang: "zh-Hans", url: cuvHans },
-  { id: "web", name: "World English Bible", lang: "en", url: web },
+export const BUNDLED: { id: string; name: string; short: string; lang: string; url: string }[] = [
+  { id: "cuv-hans", name: "和合本（简体）", short: "和合本", lang: "zh-Hans", url: cuvHans },
+  { id: "web", name: "World English Bible", short: "WEB", lang: "en", url: web },
 ];
 
 const loaded = new Map<string, Promise<Pack>>();

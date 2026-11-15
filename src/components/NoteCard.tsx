@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { docShortLabel } from "../host/registry";
 import { ArrowLeftRight, Hash, ImagePlus, Trash2 } from "lucide-react";
 import type { Annotation, HighlightStyle } from "../core/types";
 import { PALETTE, STYLES, swatch } from "../core/palette";
@@ -68,6 +69,7 @@ export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSi
         }
       }}
     >
+      {a.fromDoc && docShortLabel(a.fromDoc) && <div className="note-from">{t("note.fromDoc", { name: docShortLabel(a.fromDoc) })}</div>}
       {a.anchor.region ? <RegionQuote id={a.anchor.thumb} page={a.anchor.image ? undefined : a.anchor.section} className="region-quote small" /> : <div className="note-quote">{a.anchor.exact}</div>}
       {active ? (
         <TagTextarea

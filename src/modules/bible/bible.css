@@ -17,3 +17,25 @@
 /* the verse a jump landed on */
 .doc-section .v.ref-flash { animation: ref-flash 2.2s ease-out; border-radius: 4px; }
 @keyframes ref-flash { 0%, 55% { background: color-mix(in srgb, var(--ui-accent) 28%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 28%, transparent); } 100% { background: transparent; box-shadow: 0 0 0 3px transparent; } }
+
+/* verse numbers are empty elements drawn from data-n (clickable, not part of the text) */
+.doc-section .v .vn::before { content: attr(data-n); font-size: 0.62em; font-weight: 600; vertical-align: super; line-height: 0; margin: 0 0.25em 0 0.15em; color: var(--muted); user-select: none; cursor: pointer; }
+.doc-section .v .vn:hover::before { color: var(--ui-accent); }
+.doc-section .v::before { content: none; }
+/* the other translations under a verse (行间) */
+.doc-section .bible-v { margin: 0 0 0.9em; text-indent: 0; line-height: 1.95; }
+.doc-section .bible-v .v::after { content: attr(data-alt); display: block; white-space: pre-line; font-size: 0.82em; line-height: 1.7; color: var(--muted); margin: 0.1em 0 0 1.6em; user-select: none; }
+/* the compare menu */
+.bible-cmp { position: relative; display: inline-flex; }
+.bible-cmp-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 60; width: 250px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 12px 32px rgb(0 0 0 / 0.18); display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.bible-cmp-h { font-size: 11.5px; letter-spacing: 0.1em; color: var(--muted); }
+.bible-cmp-n { margin: 0; font-size: 12.5px; color: var(--muted); }
+/* the verse bubble */
+.bible-bubble { position: fixed; z-index: 70; width: 360px; max-width: calc(100vw - 24px); padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 12px 32px rgb(0 0 0 / 0.2); color: var(--text); font-size: 14px; line-height: 1.7; }
+.bible-bubble-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.bible-bubble-h .icon-btn { font-size: 12px; padding: 2px 6px; }
+.bible-bubble-l { margin: 4px 0; font-family: var(--read-font); }
+.bible-bubble-l span { display: inline-block; min-width: 3.4em; margin-right: 6px; font-family: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; color: var(--ui-accent); }
+.bible-bubble-n { margin: 4px 0; font-size: 12.5px; color: var(--muted); }
+.bible-bubble-a { display: flex; gap: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.bible-bubble-a button { border: 0; background: none; color: var(--ui-accent); font-size: 12.5px; cursor: pointer; padding: 0; }

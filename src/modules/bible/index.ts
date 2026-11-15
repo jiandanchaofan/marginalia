@@ -1,7 +1,10 @@
 import type { DocTocItem, Host, Module, TocNode, VirtualDoc } from "../../host/sdk";
 import { BIBLE_BOOKS, bookInfo } from "./books";
 import { BUNDLED, loadPack } from "./packs";
-import { chapterHtml } from "./render";
+import { type Alt, chapterHtml } from "./render";
+import { getCompare } from "./compare";
+import { CompareMenu } from "./CompareMenu";
+import { VerseBubble } from "./VerseBubble";
 import { BiblePage } from "./BiblePage";
 import { recognizer } from "./refs";
 import { BIBLE_MODULE_ID, PREFIX, docIdOf, parseDocId } from "./ids";
@@ -13,6 +16,9 @@ async function openBook(docId: string): Promise<VirtualDoc> {
   const id = parseDocId(docId);
   if (!id) throw new Error(docId);
   const pack = await loadPack(id.version);
+  // other translations drawn under each verse (only in the 行间 way of comparing)
+  const cmp = getCompare(id.version);
+  const alts: Alt[] = cmp.mode === "inline" ? await Promise.all(cmp.versions.map(async (v) => ({ label: BUNDLED.find((b) => b.id === v)!.short, rows: (await loadPack(v)).books[id.book] ?? [] }))) : [];
   const info = bookInfo(id.book)!;
   const rows = pack.books[id.book] ?? [];
   const zh = pack.lang.startsWith("zh");
@@ -22,7 +28,7 @@ async function openBook(docId: string): Promise<VirtualDoc> {
     author: pack.name,
     toc,
     sectionCount: info.chapters,
-    section: async (i) => ({ html: chapterHtml(id.book, i + 1, rows, pack.lang), ref: `${id.book}.${i + 1}` }),
+    section: async (i) => ({ html: chapterHtml(id.book, i + 1, rows, pack.lang, alts), ref: `${id.book}.${i + 1}` }),
   };
 }
 
@@ -53,8 +59,17 @@ export const bibleModule: Module = {
   id: BIBLE_MODULE_ID,
   name: "圣经",
   activate(host: Host) {
-    host.registerDoc({ prefix: PREFIX, toc: offered, open: openBook, joinRefs });
+    host.registerDoc({
+      prefix: PREFIX,
+      toc: offered,
+      open: openBook,
+      joinRefs,
+      refPrefix: (docId) => parseDocId(docId)?.book ?? "",
+      label: (docId) => BUNDLED.find((b) => b.id === parseDocId(docId)?.version)?.short ?? "",
+    });
     host.registerRecognizer(recognizer);
+    host.registerSlot({ id: "compare", slot: "reader.topbar", title: "对照译本", component: CompareMenu });
+    host.registerSlot({ id: "bubble", slot: "reader.overlay", title: "节", component: VerseBubble });
     host.registerPage({ id: "bible", title: "圣经", component: BiblePage });
   },
   deactivate() {},

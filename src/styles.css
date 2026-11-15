@@ -8791,3 +8791,5 @@ body.task-dragging * {
 .cover.has-img .cover-title, .cover.has-img .cover-author, .cover.has-img .cover-excerpt, .cover.has-img .cover-format { display: none; }
 
 .textLayer span.ws::selection { background: transparent; }
+
+.note-card .note-from { font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 3px; }
