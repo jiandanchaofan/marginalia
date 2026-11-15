@@ -6,6 +6,7 @@ import { epubCover, storeCover } from "./core/cover";
 import { registerBuiltins } from "./host/builtins";
 import { moduleName, setEnabled } from "./host/registry";
 import { isVirtualDoc } from "./host/virtualDoc";
+import { loadVirtualState, saveVirtualState } from "./host/virtualState";
 import {
   confirmDialog,
   deleteBook,
@@ -64,7 +65,7 @@ export default function App() {
   const [virtualBook, setVirtualBook] = useState<BookRecord | null>(null);
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
   const [focusText, setFocusText] = useState<{ section: number; text: string; snippet?: string } | null>(null);
-  const [view, setView] = useState<"shelf" | "feeds" | "notes" | "tasks">("notes");
+  const [view, setView] = useState<string>("notes");
   const [feedProgress, setFeedProgress] = useState<{ done: number; total: number } | null>(null);
   const [lastFeedRefresh, setLastFeedRefresh] = useState<number | null>(null);
   const [unread, setUnread] = useState(0);
@@ -157,7 +158,10 @@ export default function App() {
   }, []);
 
   const updateBook = useCallback((id: string, p: Partial<BookRecord>) => {
-    setVirtualBook((v) => (v && v.id === id ? { ...v, ...p } : v));
+    setVirtualBook((v) => {
+      if (v && v.id === id) saveVirtualState(id, v.title, p);
+      return v && v.id === id ? { ...v, ...p } : v;
+    });
     setBooks((list) => list.map((b) => (b.id === id ? { ...b, ...p } : b)));
   }, []);
 
@@ -407,7 +411,7 @@ export default function App() {
   /** Open a document a module provides. The module (or a test) asks for it with a `reader:open-doc` event. */
   const openVirtual = useCallback((docId: string, title: string) => {
     const now = Date.now();
-    setVirtualBook((v) => (v && v.id === docId ? v : { id: docId, ext: "", format: "html", title, author: "", fileName: title, size: 0, addedAt: now, lastOpenedAt: now, progress: 0, annotationCount: 0 }));
+    setVirtualBook((v) => (v && v.id === docId ? v : { id: docId, ext: "", format: "html", title, author: "", fileName: title, size: 0, addedAt: now, lastOpenedAt: now, progress: 0, annotationCount: 0, ...loadVirtualState(docId) }));
     setFocusText(null);
     setFocusNoteId(null);
     setOpenId(docId);

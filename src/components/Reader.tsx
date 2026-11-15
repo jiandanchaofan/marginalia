@@ -1,4 +1,5 @@
 import { clearReveal, revealActive, revealCount, revealText } from "../search/reveal";
+import { noteOrigin } from "../host/refs";
 import { bookIndex, type TextHit } from "../search/backend";
 import { FindPanel } from "../search/FindPanel";
 import { askDeleteNote, reportDeleted } from "../trash/delete";
@@ -825,6 +826,7 @@ export function Reader({ book, openAtNoteId, openAtText, settings, onSettings, o
       note,
       tags: [],
       side: "right",
+      ...noteOrigin(book.id, docRef.current?.sectionRoot(sel.anchor.section) ?? null, sel.anchor),
       createdAt: now,
       updatedAt: now,
     };
@@ -1101,7 +1103,7 @@ export function Reader({ book, openAtNoteId, openAtText, settings, onSettings, o
     const now = Date.now();
     mutate((list) => [
       ...list,
-      { id: uid(), anchor: DOC_ANCHOR, color: "amber", style: "none", note: text, tags: parseTags(text), side: "right", kind: "doc", createdAt: now, updatedAt: now },
+      { id: uid(), anchor: DOC_ANCHOR, color: "amber", style: "none", note: text, tags: parseTags(text), side: "right", kind: "doc", ...noteOrigin(book.id, null, null), createdAt: now, updatedAt: now },
     ]);
   };
   const removeDocNote = async (id: string) => {

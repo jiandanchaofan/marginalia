@@ -3,12 +3,13 @@
  * particular module; with none registered (or none enabled) the app behaves exactly as before.
  */
 import { useSyncExternalStore } from "react";
-import type { DocProvider, Host, Module, PlanProvider, RefRecognizer, SlotItem, SlotName } from "./sdk";
+import type { DocProvider, Host, Module, PageItem, PlanProvider, RefRecognizer, SlotItem, SlotName } from "./sdk";
 
 interface Provided {
   docs: DocProvider[];
   recognizers: RefRecognizer[];
   slots: SlotItem[];
+  pages: PageItem[];
   plans: PlanProvider[];
   refListeners: Set<(ref: string, docId: string) => void>;
 }
@@ -40,6 +41,7 @@ function hostFor(provided: Provided): Host {
     registerDoc: (p) => void provided.docs.push(p),
     registerRecognizer: (r) => void provided.recognizers.push(r),
     registerSlot: (s) => void provided.slots.push(s),
+    registerPage: (p) => void provided.pages.push(p),
     registerPlan: (p) => void provided.plans.push(p),
     onActiveRef: (cb) => {
       provided.refListeners.add(cb);
@@ -49,7 +51,7 @@ function hostFor(provided: Provided): Host {
 }
 
 function start(m: Module) {
-  const provided: Provided = { docs: [], recognizers: [], slots: [], plans: [], refListeners: new Set() };
+  const provided: Provided = { docs: [], recognizers: [], slots: [], pages: [], plans: [], refListeners: new Set() };
   try {
     m.activate(hostFor(provided));
     active.set(m.id, provided);
@@ -102,6 +104,9 @@ export const recognizers = (): RefRecognizer[] => all("recognizers");
 export const planProviders = (): PlanProvider[] => all("plans");
 export const slotItems = (slot: SlotName): SlotItem[] => all("slots").filter((s: SlotItem) => s.slot === slot);
 /** The provider that owns a document id (virtual documents have ids that start with the provider's prefix). */
+export const pageItems = (): PageItem[] => all("pages");
+/** The module that provides a document, by its id. */
+export const moduleOfDoc = (docId: string): string | undefined => [...active].find(([, p]) => p.docs.some((d) => docId.startsWith(d.prefix)))?.[0];
 export const docProvider = (id: string) => docProviders().find((d) => id.startsWith(d.prefix));
 
 // ---- the reading position, passed on to modules at a calm pace

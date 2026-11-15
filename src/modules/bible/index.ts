@@ -2,17 +2,11 @@ import type { DocTocItem, Host, Module, TocNode, VirtualDoc } from "../../host/s
 import { BIBLE_BOOKS, bookInfo } from "./books";
 import { BUNDLED, loadPack } from "./packs";
 import { chapterHtml } from "./render";
+import { BiblePage } from "./BiblePage";
+import { BIBLE_MODULE_ID, PREFIX, docIdOf, parseDocId } from "./ids";
 import "./bible.css";
 
-export const BIBLE_MODULE_ID = "org.marginalia.bible";
-const PREFIX = "bible:";
-
-/** "bible:cuv-hans:JHN" -> translation and book. */
-export function parseDocId(docId: string): { version: string; book: string } | null {
-  const [, version, book] = docId.split(":");
-  return version && book && bookInfo(book) ? { version, book } : null;
-}
-export const docIdOf = (version: string, book: string) => `${PREFIX}${version}:${book}`;
+export { BIBLE_MODULE_ID };
 
 async function openBook(docId: string): Promise<VirtualDoc> {
   const id = parseDocId(docId);
@@ -40,11 +34,26 @@ async function offered(): Promise<TocNode[]> {
   ];
 }
 
+/** ["JHN.3.16", "JHN.3.17-18"] -> "JHN.3.16-18"; across chapters "JHN.3.36-JHN.4.2". */
+export function joinRefs(refs: string[]): string {
+  const parse = (r: string) => {
+    const [book, c, v] = r.split(".");
+    const [from, to] = v.split("-");
+    return { book, c: +c, from: +from, to: +(to ?? from) };
+  };
+  const a = parse(refs[0]);
+  const b = parse(refs[refs.length - 1]);
+  const start = `${a.book}.${a.c}.${a.from}`;
+  if (a.book === b.book && a.c === b.c) return b.to > a.from ? `${start}-${b.to}` : start;
+  return `${start}-${b.book}.${b.c}.${b.to}`;
+}
+
 export const bibleModule: Module = {
   id: BIBLE_MODULE_ID,
   name: "圣经",
   activate(host: Host) {
-    host.registerDoc({ prefix: PREFIX, toc: offered, open: openBook });
+    host.registerDoc({ prefix: PREFIX, toc: offered, open: openBook, joinRefs });
+    host.registerPage({ id: "bible", title: "圣经", component: BiblePage });
   },
   deactivate() {},
 };

@@ -1,6 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { slotItems, useRegistry } from "./registry";
-import type { SlotContext, SlotItem, SlotName } from "./sdk";
+import type { PageContext, PageItem, SlotContext, SlotItem, SlotName } from "./sdk";
 
 /** A module's component that throws is shown as nothing (and logged); the rest of the window carries on. */
 class Guard extends Component<{ id: string; children: ReactNode }, { failed: boolean }> {
@@ -32,5 +32,14 @@ export function SlotHost({ slot, ctx, render }: { slot: SlotName; ctx: SlotConte
         return <span key={`${slot}/${item.id}`}>{render ? render(item, body) : body}</span>;
       })}
     </>
+  );
+}
+
+/** The page a module registered, with the same protection: if it throws, the rest of the window carries on. */
+export function PageHost({ page, ctx }: { page: PageItem; ctx: PageContext }) {
+  return (
+    <Guard id={`page/${page.id}`}>
+      <page.component ctx={ctx} />
+    </Guard>
   );
 }

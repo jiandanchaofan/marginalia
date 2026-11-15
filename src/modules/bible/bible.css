@@ -3,3 +3,13 @@
 .doc-section .bible-ch { margin: 1.6em 0 0.8em; }
 .doc-section .bible-text { text-indent: 0; line-height: 1.95; }
 .doc-section .bible-heading { text-indent: 0; text-align: center; color: var(--muted); font-style: italic; margin: 0 0 0.6em; }
+
+/* the Bible page */
+.bible-page { max-width: 1180px; margin: 0 auto; padding: 8px 0 60px; display: flex; flex-direction: column; gap: 22px; }
+.bible-top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.bible-top h2 { margin: 0; font-family: var(--read-font); font-size: 22px; letter-spacing: 0.05em; }
+.bible-page .continue { margin: 0; }
+.bible-group h3 { margin: 0 0 10px; font-size: 13px; letter-spacing: 0.14em; color: var(--muted); font-weight: 600; }
+.bible-books { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+.bible-book { padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font-family: var(--read-font); font-size: 14.5px; cursor: pointer; text-align: center; transition: background 0.15s, border-color 0.15s; }
+.bible-book:hover { background: var(--soft); border-color: var(--ui-accent); }

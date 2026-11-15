@@ -5,7 +5,7 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 type Row = [number, number, number, string];
 
 /**
- * One chapter as HTML. Every verse is a span that carries its canonical position (`data-verse-ref="JHN.3.16"`);
+ * One chapter as HTML. Every verse is a span that carries its canonical position (`data-ref="JHN.3.16"`);
  * the verse number is drawn by CSS from `data-n`, so it is not part of the text that notes anchor to.
  */
 export function chapterHtml(bookId: string, chapter: number, rows: Row[], lang: string): string {
@@ -22,7 +22,7 @@ export function chapterHtml(bookId: string, chapter: number, rows: Row[], lang: 
     }
     const ref = `${bookId}.${chapter}.${v}${end > v ? "-" + end : ""}`;
     const n = end > v ? `${v}-${end}` : String(v);
-    verses.push(`<span class="v" id="v${chapter}-${v}" data-verse-ref="${ref}" data-n="${n}">${esc(text).replace(/\n/g, "<br>")}</span>`);
+    verses.push(`<span class="v" id="v${chapter}-${v}" data-ref="${ref}" data-n="${n}">${esc(text).replace(/\n/g, "<br>")}</span>`);
   }
   out.push(`<p class="bible-text">${verses.join(" ")}</p>`);
   return out.join("");

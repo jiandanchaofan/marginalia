@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, CheckSquare, Compass, FilePlus2, Layers, LayoutGrid, List, Pencil, Search, Settings as SettingsIcon, Square, StickyNote, Tags, Trash2, X, ListChecks } from "lucide-react";
+import { BookMarked, BookOpen, CheckSquare, Compass, FilePlus2, Layers, LayoutGrid, List, Pencil, Search, Settings as SettingsIcon, Square, StickyNote, Tags, Trash2, X, ListChecks } from "lucide-react";
 import { STATUS_LABEL, readStatus, type BookRecord, type ReadStatus } from "../core/types";
 import type { Theme } from "../settings";
 import type { NoteHit } from "../notes/store";
@@ -16,6 +16,10 @@ import { BookInfoDialog } from "./BookInfoDialog";
 import { BatchTagDialog } from "./BatchTagDialog";
 import { DOC_TYPES, DocTypeBadge, docType } from "./DocTypeBadge";
 import { useImage } from "../notes/images";
+import { pageItems, useRegistry } from "../host/registry";
+import { PageHost } from "../host/SlotHost";
+import { recentDocs } from "../host/virtualState";
+import type { PageContext } from "../host/sdk";
 import { fmtDate, t } from "../i18n";
 import { ReadingHeat } from "../reading/ReadingHeat";
 import { AppLogo } from "./AppLogo";
@@ -28,6 +32,12 @@ function CoverImg({ id }: { id: string }) {
   const { url } = useImage(id);
   return url ? <img className="cover-img" src={url} alt="" draggable={false} /> : null;
 }
+
+/** What a module's page can do in the app. */
+const pageCtx: PageContext = {
+  openDoc: (docId, title) => window.dispatchEvent(new CustomEvent("reader:open-doc", { detail: { docId, title } })),
+  recent: recentDocs,
+};
 
 type ShelfMode = "cover" | "list";
 const MODE_KEY = "reader:shelf-mode";
@@ -65,8 +75,9 @@ interface Props {
   counts: Record<string, number>;
   /** Books that have whole-document notes, with how many. */
   docCounts: Record<string, number>;
-  view: "shelf" | "feeds" | "notes" | "tasks";
-  onView(v: "shelf" | "feeds" | "notes" | "tasks"): void;
+  /** "shelf" | "feeds" | "notes" | "tasks", or "page:<id>" for a page a module provides. */
+  view: string;
+  onView(v: string): void;
   unread: number;
   feedProgress: { done: number; total: number } | null;
   lastFeedRefresh: number | null;
@@ -92,6 +103,9 @@ interface Props {
 
 export function Library(props: Props) {
   const { books, counts, docCounts, view, onView, onOpenNote, notify, onClip, theme, busy, onImport, onOpen, onRemove } = props;
+  useRegistry();
+  const pages = pageItems();
+  const modulePage = pages.find((pg) => view === `page:${pg.id}`);
   const bookMap = useMemo(() => new Map(books.map((b) => [b.id, b])), [books]);
   const due = dueCount(useTasks()); // the number on the 任务 tab: today's and overdue tasks
   const [kind, setKind] = useState<"all" | "book" | "article">("all");
@@ -391,6 +405,11 @@ export function Library(props: Props) {
           <button className={view === "tasks" ? "on" : ""} onClick={() => onView("tasks")}>
             <ListChecks size={15} /> {t("shelf.tab.tasks")}{due > 0 && <span className="tab-badge">{due > 99 ? "99+" : due}</span>}
           </button>
+          {pages.map((pg) => (
+            <button key={pg.id} className={view === `page:${pg.id}` ? "on" : ""} onClick={() => onView(`page:${pg.id}`)}>
+              <BookMarked size={15} /> {pg.title}
+            </button>
+          ))}
           <button className={view === "feeds" ? "on" : ""} onClick={() => onView("feeds")}>
             <Compass size={15} /> {t("shelf.tab.explore")}{props.unread > 0 && <span className="tab-badge">{props.unread > 99 ? "99+" : props.unread}</span>}
           </button>
@@ -405,7 +424,9 @@ export function Library(props: Props) {
         </div>
       </header>
 
-      {view === "feeds" ? (
+      {modulePage ? (
+        <PageHost page={modulePage} ctx={pageCtx} />
+      ) : view === "feeds" ? (
         <Inbox
           books={books}
           refreshing={props.feedProgress}

@@ -56,6 +56,11 @@ export interface DocProvider {
   /** What the module offers to open, as a tree (testaments, books, ...). Leaves carry the id of a document. */
   toc(): Promise<TocNode[]>;
   open(docId: string): Promise<VirtualDoc>;
+  /**
+   * The canonical position of a selection that covers elements carrying `data-ref` (in document order);
+   * e.g. ["JHN.3.16", "JHN.3.17"] -> "JHN.3.16-17". Without it a single ref is used as it is.
+   */
+  joinRefs?(refs: string[]): string;
 }
 
 // ---------------------------------------------------------------- references in any text
@@ -91,6 +96,21 @@ export interface SlotContext {
   selection?: string;
 }
 
+/** What a module's page is given. */
+export interface PageContext {
+  /** Open one of the module's documents in the reader. */
+  openDoc(docId: string, title?: string): void;
+  /** Documents of this module opened lately (newest first), with how far the reader got. */
+  recent(prefix: string): { docId: string; title: string; progress: number; at: number }[];
+}
+
+/** A whole page of its own, reached from a tab beside Notes / Shelf / Tasks / Explore. */
+export interface PageItem {
+  id: string;
+  title: string;
+  component: ComponentType<{ ctx: PageContext }>;
+}
+
 export interface SlotItem {
   /** Unique within the module. */
   id: string;
@@ -122,6 +142,7 @@ export interface Host {
   registerDoc(p: DocProvider): void;
   registerRecognizer(r: RefRecognizer): void;
   registerSlot(item: SlotItem): void;
+  registerPage(page: PageItem): void;
   registerPlan(p: PlanProvider): void;
   /** Called (at most about 4 times a second) when the reading position moves to another canonical position. */
   onActiveRef(cb: (ref: string, docId: string) => void): () => void;
