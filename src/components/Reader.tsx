@@ -927,10 +927,11 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
   const onStageClick = (e: React.MouseEvent) => {
     // a verse number of a module's document (an empty element marked data-ref-click): tell the module where it is
     const marker = (e.target as Element).closest?.("[data-ref-click]");
-    const refEl = marker?.closest<HTMLElement>("[data-ref]");
-    if (marker && refEl?.dataset.ref) {
+    const refEl = marker?.closest<HTMLElement>("[data-ref], [data-ref-alt]");
+    const refValue = refEl?.dataset.ref ?? refEl?.dataset.refAlt;
+    if (marker && refValue) {
       const r = marker.getBoundingClientRect();
-      window.dispatchEvent(new CustomEvent("reader:ref-click", { detail: { docId: book.id, ref: refEl.dataset.ref, x: r.left, y: r.bottom } }));
+      window.dispatchEvent(new CustomEvent("reader:ref-click", { detail: { docId: book.id, ref: refValue, x: r.left, y: r.bottom } }));
       return;
     }
     if ((e.target as Element).closest(".note-card, .sel-toolbar, .marker, a")) return;

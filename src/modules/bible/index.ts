@@ -2,7 +2,7 @@ import type { DocTocItem, Host, Module, TocNode, VirtualDoc } from "../../host/s
 import { BIBLE_BOOKS, bookInfo } from "./books";
 import { BUNDLED, loadPack } from "./packs";
 import { type Alt, chapterHtml } from "./render";
-import { getCompare } from "./compare";
+import { SIDE_MIN_WIDTH, getCompare } from "./compare";
 import { CompareMenu } from "./CompareMenu";
 import { VerseBubble } from "./VerseBubble";
 import { BiblePage } from "./BiblePage";
@@ -18,7 +18,11 @@ async function openBook(docId: string): Promise<VirtualDoc> {
   const pack = await loadPack(id.version);
   // other translations drawn under each verse (only in the 行间 way of comparing)
   const cmp = getCompare(id.version);
-  const alts: Alt[] = cmp.mode === "inline" ? await Promise.all(cmp.versions.map(async (v) => ({ label: BUNDLED.find((b) => b.id === v)!.short, rows: (await loadPack(v)).books[id.book] ?? [] }))) : [];
+  // two columns need a wide window; in a narrow one the other translation goes under each verse instead
+  const wide = typeof window === "undefined" || window.innerWidth >= SIDE_MIN_WIDTH;
+  const side = cmp.mode === "side" && cmp.versions.length > 0 && wide;
+  const wanted = cmp.mode === "inline" || (cmp.mode === "side" && !wide) ? cmp.versions : side ? cmp.versions.slice(0, 1) : [];
+  const alts: Alt[] = await Promise.all(wanted.map(async (v) => ({ label: BUNDLED.find((b) => b.id === v)!.short, rows: (await loadPack(v)).books[id.book] ?? [] })));
   const info = bookInfo(id.book)!;
   const rows = pack.books[id.book] ?? [];
   const zh = pack.lang.startsWith("zh");
@@ -28,7 +32,8 @@ async function openBook(docId: string): Promise<VirtualDoc> {
     author: pack.name,
     toc,
     sectionCount: info.chapters,
-    section: async (i) => ({ html: chapterHtml(id.book, i + 1, rows, pack.lang, alts), ref: `${id.book}.${i + 1}` }),
+    preferredWidth: side ? 1040 : undefined, // the reader narrows it to what the window has
+    section: async (i) => ({ html: chapterHtml(id.book, i + 1, rows, pack.lang, alts, side), ref: `${id.book}.${i + 1}` }),
   };
 }
 

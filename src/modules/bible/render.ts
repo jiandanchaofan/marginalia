@@ -23,7 +23,7 @@ export function altText(rows: Row[], chapter: number, from: number, to: number):
  * that notes anchor to. With `alts` each verse is its own paragraph and the other translations are drawn under it
  * from `data-alt` (also not part of the text).
  */
-export function chapterHtml(bookId: string, chapter: number, rows: Row[], lang: string, alts: Alt[] = []): string {
+export function chapterHtml(bookId: string, chapter: number, rows: Row[], lang: string, alts: Alt[] = [], side = false): string {
   const info = bookInfo(bookId);
   const name = info ? (lang.startsWith("zh") ? info.zh : info.en) : bookId;
   const out: string[] = [`<h2 class="bible-ch" id="ch${chapter}">${esc(`${name} ${chapter}`)}</h2>`];
@@ -37,9 +37,17 @@ export function chapterHtml(bookId: string, chapter: number, rows: Row[], lang: 
     const ref = `${bookId}.${chapter}.${v}${end > v ? "-" + end : ""}`;
     const n = end > v ? `${v}-${end}` : String(v);
     for (let k = v + 1; k <= end; k++) verses.push(`<i id="v${chapter}-${k}"></i>`);
-    const alt = alts.map((a) => `${a.label}  ${altText(a.rows, chapter, v, end) || "（此译本无此节）"}`).join("\n");
+    const alt = side ? "" : alts.map((a) => `${a.label}  ${altText(a.rows, chapter, v, end) || "（此译本无此节）"}`).join("\n");
     const span = `<span class="v" id="v${chapter}-${v}" data-ref="${ref}"${alt ? ` data-alt="${escAttr(alt)}"` : ""}><b class="vn" data-n="${n}" data-ref-click aria-hidden="true"></b>${esc(text).replace(/\n/g, "<br>")}</span>`;
-    verses.push(alts.length ? `<p class="bible-v">${span}</p>` : span);
+    if (side && alts[0]) {
+      // two columns, one row per verse; the right one is drawn from data-alt, with a verse number that can be clicked too
+      const a = alts[0];
+      const words = altText(a.rows, chapter, v, end) || "（此译本无此节）";
+      verses.push(`<div class="bible-pv">${span} <span class="alt" data-ref-alt="${ref}" data-alt="${escAttr(words)}" data-label="${escAttr(a.label)}"><b class="vn" data-n="${n}" data-ref-click aria-hidden="true"></b></span></div>`);
+    } else {
+      // a space after every verse keeps the page text the same whichever way translations are compared
+      verses.push(alts.length ? `<p class="bible-v">${span} </p>` : span);
+    }
   }
   out.push(alts.length ? verses.join("") : `<p class="bible-text">${verses.join(" ")}</p>`);
   return out.join("");

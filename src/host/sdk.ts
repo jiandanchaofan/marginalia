@@ -44,6 +44,8 @@ export interface VirtualDoc {
   author?: string;
   toc: DocTocItem[];
   sectionCount: number;
+  /** The reading column this document wants (px); the reader keeps its own default when absent. */
+  preferredWidth?: number;
   section(index: number): Promise<SectionContent>;
 }
 

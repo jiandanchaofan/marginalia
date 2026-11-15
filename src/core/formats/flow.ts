@@ -27,6 +27,8 @@ export interface FlowSpec {
   author: string;
   toc: TocItem[];
   sections: FlowSection[];
+  /** The reading column wanted, in px (default 680). */
+  preferredWidth?: number;
   /** Map an <a href> inside section `from` to a target section + fragment. */
   resolveLink?(from: number, href: string): { section: number; fragment?: string } | null;
   cleanup?(): void;
@@ -44,7 +46,7 @@ export function flowDoc(spec: FlowSpec): LoadedDoc {
     title: spec.title,
     author: spec.author,
     toc: spec.toc,
-    preferredWidth: 680,
+    preferredWidth: spec.preferredWidth ?? 680,
 
     async mount(el: HTMLElement, opts: MountOptions) {
       host = el;

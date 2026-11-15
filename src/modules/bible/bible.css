@@ -39,3 +39,11 @@
 .bible-bubble-n { margin: 4px 0; font-size: 12.5px; color: var(--muted); }
 .bible-bubble-a { display: flex; gap: 10px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .bible-bubble-a button { border: 0; background: none; color: var(--ui-accent); font-size: 12.5px; cursor: pointer; padding: 0; }
+
+/* two columns (并排): the main translation on the left, the other drawn on the right */
+.doc-section .bible-pv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 2.2em; margin: 0 0 0.7em; line-height: 1.95; text-indent: 0; }
+.doc-section .bible-pv .alt { color: var(--muted); font-size: 0.92em; user-select: none; }
+.doc-section .bible-pv .alt::after { content: attr(data-alt); }
+.doc-section .bible-pv .alt .vn::before { content: attr(data-n); font-size: 0.68em; font-weight: 600; vertical-align: super; line-height: 0; margin: 0 0.25em 0 0; color: var(--muted); user-select: none; cursor: pointer; }
+.doc-section .bible-pv .alt .vn:hover::before { color: var(--ui-accent); }
+.doc-section .bible-pv:first-of-type .alt::before { content: attr(data-label); display: block; font-size: 0.7em; font-weight: 700; letter-spacing: 0.12em; color: var(--ui-accent); margin-bottom: 0.2em; }

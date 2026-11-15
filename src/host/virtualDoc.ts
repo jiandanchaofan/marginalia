@@ -12,6 +12,7 @@ export async function loadVirtualDoc(docId: string): Promise<LoadedDoc> {
   const v = await provider.open(docId);
   return flowDoc({
     format: "html",
+    preferredWidth: v.preferredWidth,
     title: v.title,
     author: v.author ?? "",
     toc: v.toc.map(function item(x): LoadedDoc["toc"][number] {
