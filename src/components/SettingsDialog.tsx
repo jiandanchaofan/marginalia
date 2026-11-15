@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { DatabaseBackup, FileText, FolderOpen, Info, Keyboard, Mail, Palette, SlidersHorizontal, Tag, X } from "lucide-react";
 import type { BookRecord } from "../core/types";
 import type { Settings } from "../settings";
@@ -430,19 +430,22 @@ function ModulesPane({ s, onChange }: { s: Settings; onChange(p: Partial<Setting
       <div className="panel-title">{t("mod.title")}</div>
       <div className="settings-body">
         <p className="settings-hint">{t("mod.hint")}</p>
-        {recognizers().length > 0 && (
-          <label className="check">
-            <input type="checkbox" checked={s.refPreview !== false} onChange={(e) => onChange({ refPreview: e.target.checked })} /> {t("mod.refPreview")}
-          </label>
-        )}
         {list.map((m) => (
-          <div key={m.id}>
+          <Fragment key={m.id}>
             <label className="check">
               <input type="checkbox" checked={on.has(m.id)} onChange={(e) => flip(m.id, e.target.checked)} /> {m.name}
             </label>
             {on.has(m.id) && failureOf(m.id) && <p className="sy-err">{t("mod.failed", { err: failureOf(m.id)! })}</p>}
-          </div>
+          </Fragment>
         ))}
+        {recognizers().length > 0 && (
+          <>
+            <label className="check sub-option">
+              <input type="checkbox" checked={s.refPreview !== false} onChange={(e) => onChange({ refPreview: e.target.checked })} /> {t("mod.refPreview")}
+            </label>
+            <p className="settings-hint sub-option">{t("mod.refPreviewHint")}</p>
+          </>
+        )}
       </div>
     </div>
   );

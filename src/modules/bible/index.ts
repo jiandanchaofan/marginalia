@@ -62,7 +62,7 @@ export function joinRefs(refs: string[]): string {
 
 export const bibleModule: Module = {
   id: BIBLE_MODULE_ID,
-  name: "圣经",
+  name: "Bible Study Plugin",
   activate(host: Host) {
     host.registerDoc({
       prefix: PREFIX,
