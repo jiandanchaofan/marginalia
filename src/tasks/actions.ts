@@ -27,6 +27,34 @@ const planFields = (raw: string) => {
   return { plan: p?.raw ?? "", planKind: (p?.kind ?? "") as Task["planKind"], planStart: p?.start ?? "", planEnd: p?.end ?? "" };
 };
 
+/** Many standalone tasks written in one go (a plan's days): `plan` is the written form of the planned day, `2026-11-20`. */
+export async function createTasks(list: { title: string; tags?: string[]; plan?: string }[]): Promise<Task[]> {
+  const now = Date.now();
+  const tasks = list.map((f, i): Task => {
+    const tags = [...new Set(f.tags ?? [])];
+    return {
+      id: newTaskId(),
+      title: f.title.trim(),
+      note: "",
+      done: false,
+      doneAt: null,
+      priority: 0,
+      ...planFields(f.plan ?? ""),
+      deadline: "",
+      tags,
+      ownTags: tags,
+      parentId: null,
+      sort: now + i,
+      sourceNoteId: null,
+      sourceLine: "",
+      createdAt: now,
+      updatedAt: now,
+    };
+  });
+  await tasksStore.apply(tasks);
+  return tasks;
+}
+
 /** A new standalone task (made on the task page). */
 export async function createTask(f: { title: string; tags?: string[]; plan?: Plan | null; deadline?: string; priority?: number; parentId?: string | null }): Promise<Task> {
   const now = Date.now();

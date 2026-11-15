@@ -8793,3 +8793,8 @@ body.task-dragging * {
 .textLayer span.ws::selection { background: transparent; }
 
 .note-card .note-from { font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 3px; }
+
+/* a module's own entry (e.g. 圣经), apart from the four main tabs and just left of "import" */
+.lib-actions .module-tab { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--text); font: inherit; font-size: 13.5px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+.lib-actions .module-tab:hover { background: var(--soft); border-color: var(--ui-accent); }
+.lib-actions .module-tab.on { background: var(--ui-accent); border-color: var(--ui-accent); color: #fff; }

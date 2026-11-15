@@ -47,3 +47,25 @@
 .doc-section .bible-pv .alt .vn::before { content: attr(data-n); font-size: 0.68em; font-weight: 600; vertical-align: super; line-height: 0; margin: 0 0.25em 0 0; color: var(--muted); user-select: none; cursor: pointer; }
 .doc-section .bible-pv .alt .vn:hover::before { color: var(--ui-accent); }
 .doc-section .bible-pv:first-of-type .alt::before { content: attr(data-label); display: block; font-size: 0.7em; font-weight: 700; letter-spacing: 0.12em; color: var(--ui-accent); margin-bottom: 0.2em; }
+
+/* reading plans */
+.bible-plans { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 10px; }
+.bible-plans-h { display: flex; align-items: center; justify-content: space-between; }
+.bible-plans-h h3 { margin: 0; font-size: 13px; letter-spacing: 0.14em; color: var(--muted); font-weight: 600; }
+.bible-plans-n { margin: 0; font-size: 13px; color: var(--muted); }
+.bible-plan { display: flex; flex-direction: column; gap: 5px; padding: 8px 0; border-top: 1px solid var(--line); }
+.bible-plan:first-of-type { border-top: 0; }
+.bible-plan-t { display: flex; align-items: baseline; gap: 12px; }
+.bible-plan-t b { font-family: var(--read-font); font-size: 15px; }
+.bible-plan-t span { flex: 1; font-size: 12px; color: var(--muted); }
+.bible-plan .continue-bar { grid-area: auto; }
+.bible-plan-m { font-size: 12.5px; color: var(--muted); }
+.bible-plan-dlg { max-width: 480px; display: flex; flex-direction: column; gap: 6px; }
+.bible-plan-dlg select.field-input { width: 100%; }
+.bible-row { display: flex; align-items: center; gap: 8px; }
+.bible-row select { flex: 1; }
+.bible-num { width: 90px; }
+.bible-preview { margin: 8px 0 2px; padding: 10px 12px; border-radius: 10px; background: var(--soft); font-size: 13px; line-height: 1.8; }
+.bible-preview span { display: inline-block; min-width: 4.5em; color: var(--muted); }
+.bible-preview-h { font-weight: 600; margin-bottom: 4px; }
+.bible-preview-more { color: var(--muted); }

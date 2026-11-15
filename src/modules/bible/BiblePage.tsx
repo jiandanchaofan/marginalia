@@ -3,6 +3,7 @@ import type { PageContext } from "../../host/sdk";
 import { BIBLE_BOOKS } from "./books";
 import { BUNDLED } from "./packs";
 import { VERSION_STORAGE_KEY, currentVersion, docIdOf } from "./ids";
+import { PlanSection } from "./PlanSection";
 
 
 /** The Bible page: pick a translation, continue where you were, or open any of the 66 books. */
@@ -42,6 +43,7 @@ export function BiblePage({ ctx }: { ctx: PageContext }) {
           ))}
         </div>
       </div>
+      <PlanSection ctx={ctx} />
       {recent.length > 0 && (
         <div className="continue">
           <span className="continue-label">继续阅读</span>

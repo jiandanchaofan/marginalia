@@ -124,6 +124,13 @@ export interface PageContext {
   openDoc(docId: string, title?: string): void;
   /** Documents of this module opened lately (newest first), with how far the reader got. */
   recent(prefix: string): { docId: string; title: string; progress: number; at: number }[];
+  /** Make to-dos (one for each planned day) and goals for a plan; returns their ids, to keep for taking the plan back. */
+  applyPlan(title: string, tasks: PlannedTask[]): Promise<{ taskIds: string[]; goalIds: string[] }>;
+  removePlan(ids: { taskIds: string[]; goalIds: string[] }): Promise<void>;
+  /** How many of a plan's to-dos are done, and the first one that is not. */
+  planProgress(taskIds: string[]): Promise<{ done: number; total: number; next?: { title: string; day: string } }>;
+  /** Called when to-dos change; returns the way to stop listening. */
+  onTasksChanged(cb: () => void): () => void;
 }
 
 /** A whole page of its own, reached from a tab beside Notes / Shelf / Tasks / Explore. */

@@ -31,6 +31,8 @@ export interface Settings {
   bookSearch?: boolean;
   /** Ask before moving a note or to-do to the recycle bin (default on). */
   confirmDelete?: boolean;
+  /** Version of the reading typography defaults the stored settings were last brought to (see normalizeSettings). */
+  typo?: number;
   /** Ids of the built-in modules that are switched on (none by default). */
   modules?: string[];
   /** Keyboard shortcuts the user changed, by command id ("" = none). */
@@ -60,6 +62,12 @@ export interface Settings {
  */
 export function normalizeSettings(s: Settings): Settings {
   const out = { ...s };
+  // The reading defaults changed from 18px / 1.85 / indented to 17px / 1.9 / not indented (like the Explore preview).
+  // Settings still on the old defaults (so never adjusted by the person) move over once; anything chosen is kept.
+  if (out.typo !== 2) {
+    if (out.fontSize === 18 && out.lineHeight === 1.85 && out.indent === true) Object.assign(out, { fontSize: 17, lineHeight: 1.9, indent: false });
+    out.typo = 2;
+  }
   if (!["auto", "zh-Hans", "zh-Hant", "en"].includes(out.lang as string)) out.lang = "auto";
   if (![60, 90, 180].includes(out.readingIdle as number)) out.readingIdle = 90;
   if (out.weekStart !== 0) out.weekStart = 1;
@@ -108,11 +116,11 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "paper",
   font: "serif",
   fontEn: "sourceserif",
-  fontSize: 18,
+  fontSize: 17,
   zoom: 1,
   libZoom: 1,
-  lineHeight: 1.85,
-  indent: true,
+  lineHeight: 1.9,
+  indent: false,
   layout: "auto",
   lastColor: "amber",
   lastStyle: "highlight",
