@@ -39,6 +39,8 @@ interface Props {
   openAtNoteId?: string | null;
   /** Open the book at this passage (coming from a search in the books' text). */
   openAtText?: { section: number; text: string; snippet?: string } | null;
+  /** A place inside a module's document (a chapter, a verse): the reader goes there once the text is laid out. */
+  openAtRef?: { section: number; fragment?: string; seq: number } | null;
   settings: Settings;
   onSettings(p: Partial<Settings>): void;
   onBookUpdate(id: string, p: Partial<BookRecord>): void;
@@ -82,7 +84,7 @@ const CARD_GAP = 10;
 const DOC_CARD = "__doc__";
 const MARKER_GUTTER = 18;
 
-export function Reader({ book, openAtNoteId, openAtText, settings, onSettings, onBookUpdate, onClose, onError }: Props) {
+export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, onSettings, onBookUpdate, onClose, onError }: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -108,6 +110,8 @@ export function Reader({ book, openAtNoteId, openAtText, settings, onSettings, o
   const [notesFilter, setNotesFilter] = useState<NotesFilter>({ ...EMPTY_FILTER, sort: "position" });
   const pendingFocus = useRef<string | null>(openAtNoteId ?? null);
   const pendingText = useRef(openAtText ?? null);
+  const pendingRef = useRef(openAtRef ?? null);
+  const shownRef = useRef(openAtRef ?? null);
   const shownText = useRef(openAtText ?? null);
   // a PDF draws a page's text only when it is near the screen: the boxes follow as the pages appear
   const pdfSearch = useRef<{ section: number; text: string; snippet?: string; first: boolean } | null>(null);
@@ -180,6 +184,24 @@ export function Reader({ book, openAtNoteId, openAtText, settings, onSettings, o
     return () => window.removeEventListener("keydown", on);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [find]);
+  /** Scroll to a place in a module's document and mark it for a moment. */
+  const goToPlace = (p: { section: number; fragment?: string }) => {
+    const d = docRef.current;
+    const sc = scrollerRef.current;
+    const el = d?.locate(p.section, p.fragment);
+    if (!d || !sc || !el) return;
+    sc.scrollTop = topOf(el) - 120;
+    const mark = (el.closest("[data-ref]") ?? el) as HTMLElement;
+    mark.classList.add("ref-flash");
+    window.setTimeout(() => mark.classList.remove("ref-flash"), 2200);
+  };
+  // a place asked for in a document that is already open
+  useEffect(() => {
+    if (!openAtRef || openAtRef === shownRef.current || !doc) return;
+    shownRef.current = openAtRef;
+    goToPlace(openAtRef);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openAtRef, doc]);
   // searching again for a passage of the book that is already open
   useEffect(() => {
     if (!openAtText || openAtText === shownText.current || !doc) return;
@@ -332,7 +354,7 @@ export function Reader({ book, openAtNoteId, openAtText, settings, onSettings, o
   useEffect(() => {
     if (!doc || !hostRef.current) return;
     const focusNote = pendingFocus.current ? annRef.current.find((a) => a.id === pendingFocus.current) : undefined;
-    const restore = focusNote && !isDocNote(focusNote) ? { section: focusNote.anchor.section, ratio: 0 } : pendingText.current ? { section: pendingText.current.section, ratio: 0 } : book.location;
+    const restore = focusNote && !isDocNote(focusNote) ? { section: focusNote.anchor.section, ratio: 0 } : pendingRef.current ? { section: pendingRef.current.section, ratio: 0 } : pendingText.current ? { section: pendingText.current.section, ratio: 0 } : book.location;
     let restored = !restore || doc.format === "pdf";
     if (doc.format === "pdf" && pendingText.current) {
       const target = pendingText.current;
@@ -368,6 +390,11 @@ export function Reader({ book, openAtNoteId, openAtText, settings, onSettings, o
         }
         setLoading(false);
         scheduleGeometry();
+        const place = pendingRef.current;
+        if (place) {
+          pendingRef.current = null;
+          requestAnimationFrame(() => requestAnimationFrame(() => goToPlace(place)));
+        }
         const target = pendingText.current;
         if (target && doc.format !== "pdf") {
           pendingText.current = null;

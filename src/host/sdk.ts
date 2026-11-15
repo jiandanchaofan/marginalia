@@ -75,10 +75,26 @@ export interface RefMatch {
   label: string;
 }
 
+/** A place a reference leads to: which document to open and where in it. */
+export interface RefTarget {
+  docId: string;
+  /** Title of the document (shown in the reader's top bar while it opens). */
+  title: string;
+  /** How the place reads, e.g. "约翰福音 3:16". */
+  label: string;
+  /** A second line, e.g. the translation. */
+  sub?: string;
+  section: number;
+  fragment?: string;
+  ref: string;
+}
+
 /** Finds references to the module's texts inside other text (a book, a note) and previews them. */
 export interface RefRecognizer {
   id: string;
   find(text: string): RefMatch[];
+  /** Places that match what was typed in the command palette ("约 3:16", "rom 8"). */
+  lookup?(query: string): RefTarget[];
   preview?(ref: string): Promise<{ title: string; html: string } | null>;
 }
 

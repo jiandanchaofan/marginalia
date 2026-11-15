@@ -3,6 +3,7 @@ import { BIBLE_BOOKS, bookInfo } from "./books";
 import { BUNDLED, loadPack } from "./packs";
 import { chapterHtml } from "./render";
 import { BiblePage } from "./BiblePage";
+import { recognizer } from "./refs";
 import { BIBLE_MODULE_ID, PREFIX, docIdOf, parseDocId } from "./ids";
 import "./bible.css";
 
@@ -53,6 +54,7 @@ export const bibleModule: Module = {
   name: "圣经",
   activate(host: Host) {
     host.registerDoc({ prefix: PREFIX, toc: offered, open: openBook, joinRefs });
+    host.registerRecognizer(recognizer);
     host.registerPage({ id: "bible", title: "圣经", component: BiblePage });
   },
   deactivate() {},

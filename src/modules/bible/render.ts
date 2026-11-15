@@ -22,6 +22,7 @@ export function chapterHtml(bookId: string, chapter: number, rows: Row[], lang: 
     }
     const ref = `${bookId}.${chapter}.${v}${end > v ? "-" + end : ""}`;
     const n = end > v ? `${v}-${end}` : String(v);
+    for (let k = v + 1; k <= end; k++) verses.push(`<i id="v${chapter}-${k}"></i>`);
     verses.push(`<span class="v" id="v${chapter}-${v}" data-ref="${ref}" data-n="${n}">${esc(text).replace(/\n/g, "<br>")}</span>`);
   }
   out.push(`<p class="bible-text">${verses.join(" ")}</p>`);

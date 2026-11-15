@@ -9,6 +9,7 @@ import { useGoals } from "../tasks/useGoals";
 import { goalLabel } from "../tasks/goals";
 import { t } from "../i18n";
 import { docLabel } from "../host/label";
+import { lookupRefs } from "../host/registry";
 import { allCommands, type Actions } from "./commands";
 import { bookIndex, type Found } from "../search/backend";
 import { postIntent } from "./intent";
@@ -16,7 +17,7 @@ import { PALETTE_ID, chips, comboOf, eventCombo, ownerOf, shortcutsPaused, type 
 import "./palette.css";
 
 type Scope = "tag" | "book" | "cmd" | "text" | null;
-type Kind = "note" | "book" | "task" | "tag" | "cmd" | "page" | "goal" | "text";
+type Kind = "note" | "book" | "task" | "tag" | "cmd" | "page" | "goal" | "text" | "ref";
 interface Row {
   key: string;
   kind: Kind;
@@ -32,7 +33,7 @@ interface Group {
   rows: Row[];
 }
 
-const ICON: Record<Kind, string> = { note: "笔", book: "书", task: "✓", tag: "#", cmd: "＋", page: "页", goal: "目", text: "文" };
+const ICON: Record<Kind, string> = { note: "笔", book: "书", task: "✓", tag: "#", cmd: "＋", page: "页", goal: "目", text: "文", ref: "经" };
 const RECENT_KEY = "reader:palette-recent";
 const loadRecent = (): string[] => {
   try {
@@ -233,6 +234,20 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
       if (recentRows.length) out.push({ title: t("pal.recent"), rows: recentRows });
       out.push({ title: t("pal.common"), rows: cmds.filter((c) => c.common).map(cmdRow) });
     } else {
+      // places in a module's texts ("约 3:16"): first, because typing one means going there
+      const places = lookupRefs(text.trim());
+      if (places.length)
+        out.push({
+          title: t("pal.refs"),
+          rows: places.map((p, i) => ({
+            key: `r:${p.docId}:${p.ref}:${i}`,
+            kind: "ref" as const,
+            title: p.label,
+            sub: p.sub,
+            hint: t("pal.open"),
+            run: () => window.dispatchEvent(new CustomEvent("reader:open-doc", { detail: { docId: p.docId, title: p.title, at: { section: p.section, fragment: p.fragment } } })),
+          })),
+        });
       const tg = pick(tags, q, (x) => x.tag).slice(0, CAP);
       if (tg.length) out.push({ title: t("pal.tags"), rows: tg.map(tagRow) });
       const bk = pick(books, q, (b) => b.title, (b) => b.author).filter((b) => rank(b.title, q) >= 0 || rank(b.author ?? "", q) >= 0).slice(0, CAP);

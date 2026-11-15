@@ -2,25 +2,16 @@ import { useState } from "react";
 import type { PageContext } from "../../host/sdk";
 import { BIBLE_BOOKS } from "./books";
 import { BUNDLED } from "./packs";
-import { docIdOf } from "./ids";
+import { VERSION_STORAGE_KEY, currentVersion, docIdOf } from "./ids";
 
-const VERSION_KEY = "reader:bible:version";
-const getVersion = () => {
-  try {
-    const v = localStorage.getItem(VERSION_KEY);
-    return BUNDLED.some((b) => b.id === v) ? (v as string) : BUNDLED[0].id;
-  } catch {
-    return BUNDLED[0].id;
-  }
-};
 
 /** The Bible page: pick a translation, continue where you were, or open any of the 66 books. */
 export function BiblePage({ ctx }: { ctx: PageContext }) {
-  const [version, setVersionState] = useState(getVersion);
+  const [version, setVersionState] = useState(() => currentVersion(BUNDLED.map((b) => b.id)));
   const setVersion = (v: string) => {
     setVersionState(v);
     try {
-      localStorage.setItem(VERSION_KEY, v);
+      localStorage.setItem(VERSION_STORAGE_KEY, v);
     } catch {
       /* not remembered */
     }

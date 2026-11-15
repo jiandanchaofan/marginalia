@@ -63,6 +63,8 @@ export default function App() {
   const [openId, setOpenId] = useState<string | null>(null);
   // a document a module provides (no file, not on the shelf): kept only while it is open
   const [virtualBook, setVirtualBook] = useState<BookRecord | null>(null);
+  // where to land in the module document being opened (a verse): the reader goes there once it is laid out
+  const [openAt, setOpenAt] = useState<{ docId: string; section: number; fragment?: string; seq: number } | null>(null);
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
   const [focusText, setFocusText] = useState<{ section: number; text: string; snippet?: string } | null>(null);
   const [view, setView] = useState<string>("notes");
@@ -409,7 +411,8 @@ export default function App() {
   };
 
   /** Open a document a module provides. The module (or a test) asks for it with a `reader:open-doc` event. */
-  const openVirtual = useCallback((docId: string, title: string) => {
+  const openVirtual = useCallback((docId: string, title: string, at?: { section: number; fragment?: string }) => {
+    setOpenAt(at ? { docId, ...at, seq: Date.now() } : null);
     const now = Date.now();
     setVirtualBook((v) => (v && v.id === docId ? v : { id: docId, ext: "", format: "html", title, author: "", fileName: title, size: 0, addedAt: now, lastOpenedAt: now, progress: 0, annotationCount: 0, ...loadVirtualState(docId) }));
     setFocusText(null);
@@ -418,8 +421,8 @@ export default function App() {
   }, []);
   useEffect(() => {
     const on = (e: Event) => {
-      const d = (e as CustomEvent<{ docId: string; title?: string }>).detail;
-      if (d?.docId && isVirtualDoc(d.docId)) openVirtual(d.docId, d.title ?? d.docId);
+      const d = (e as CustomEvent<{ docId: string; title?: string; at?: { section: number; fragment?: string } }>).detail;
+      if (d?.docId && isVirtualDoc(d.docId)) openVirtual(d.docId, d.title ?? d.docId, d.at);
     };
     window.addEventListener("reader:open-doc", on);
     return () => window.removeEventListener("reader:open-doc", on);
@@ -574,6 +577,7 @@ export default function App() {
           key={openBook.id}
           book={openBook}
           openAtNoteId={focusNoteId}
+          openAtRef={openAt && openAt.docId === openBook.id ? openAt : null}
           openAtText={focusText}
           settings={settings}
           onSettings={updateSettings}

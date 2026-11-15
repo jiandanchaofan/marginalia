@@ -1459,6 +1459,7 @@ export const en: Record<Key, string> & Record<string, string> = {
   "mod.title": "Modules",
   "mod.hint": "Modules add features for particular readers and are off by default. Switching one off keeps the notes it wrote; they show as ordinary notes.",
   "mod.failed": "Could not start: {err}",
+  "pal.refs": "Scripture",
   "tp.back": "Back to the notes list",
   "tp.stat": "{notes} notes · {books} books · {tasks} to-dos ({done} done)",
   "tp.withKids": "Include sub-tags",

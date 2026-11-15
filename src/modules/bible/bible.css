@@ -13,3 +13,7 @@
 .bible-books { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
 .bible-book { padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font-family: var(--read-font); font-size: 14.5px; cursor: pointer; text-align: center; transition: background 0.15s, border-color 0.15s; }
 .bible-book:hover { background: var(--soft); border-color: var(--ui-accent); }
+
+/* the verse a jump landed on */
+.doc-section .v.ref-flash { animation: ref-flash 2.2s ease-out; border-radius: 4px; }
+@keyframes ref-flash { 0%, 55% { background: color-mix(in srgb, var(--ui-accent) 28%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 28%, transparent); } 100% { background: transparent; box-shadow: 0 0 0 3px transparent; } }

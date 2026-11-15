@@ -1444,6 +1444,7 @@ export const zhHans = {
   "mod.title": "模块",
   "mod.hint": "模块是为特定人群准备的专业功能，默认关闭。关闭后，它写过的笔记仍然保留，会显示为普通笔记。",
   "mod.failed": "没能启动：{err}",
+  "pal.refs": "经文",
   "tp.back": "回到笔记列表",
   "tp.stat": "{notes} 条笔记 · {books} 本书 · {tasks} 个待办（{done} 已完成）",
   "tp.withKids": "包含子标签",

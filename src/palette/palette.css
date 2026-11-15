@@ -55,3 +55,4 @@
 .qc-foot { padding: 8px 20px 12px; font-size: 12px; color: var(--muted); border-top: 1px solid color-mix(in srgb, var(--muted) 20%, transparent); }
 .pal.qc { overflow: visible; -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--card); }
 .pal-ic.text { background: #6b7a8f; }
+.pal-ic.ref { background: #8a5a44; }

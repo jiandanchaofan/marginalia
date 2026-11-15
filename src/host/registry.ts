@@ -3,7 +3,7 @@
  * particular module; with none registered (or none enabled) the app behaves exactly as before.
  */
 import { useSyncExternalStore } from "react";
-import type { DocProvider, Host, Module, PageItem, PlanProvider, RefRecognizer, SlotItem, SlotName } from "./sdk";
+import type { DocProvider, Host, Module, PageItem, PlanProvider, RefRecognizer, RefTarget, SlotItem, SlotName } from "./sdk";
 
 interface Provided {
   docs: DocProvider[];
@@ -101,6 +101,18 @@ const all = <K extends keyof Provided>(k: K): Provided[K] extends (infer T)[] ? 
 
 export const docProviders = (): DocProvider[] => all("docs");
 export const recognizers = (): RefRecognizer[] => all("recognizers");
+/** What the command palette offers for a typed query, from every module that recognises references. */
+export function lookupRefs(query: string): RefTarget[] {
+  const out: RefTarget[] = [];
+  for (const r of recognizers()) {
+    try {
+      out.push(...(r.lookup?.(query) ?? []));
+    } catch {
+      /* one module's mistake stays its own */
+    }
+  }
+  return out;
+}
 export const planProviders = (): PlanProvider[] => all("plans");
 export const slotItems = (slot: SlotName): SlotItem[] => all("slots").filter((s: SlotItem) => s.slot === slot);
 /** The provider that owns a document id (virtual documents have ids that start with the provider's prefix). */
