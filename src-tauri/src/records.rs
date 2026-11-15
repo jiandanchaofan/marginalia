@@ -528,6 +528,32 @@ mod tests {
     }
 
     #[test]
+    fn a_notes_canonical_position_and_module_travel_with_it_and_survive_a_conflict_copy() {
+        let a = db();
+        let mut b = db();
+        let mark = |mut n: Note| {
+            n.canonical_ref = "JHN.3.16".into();
+            n.source_module = "org.marginalia.bible".into();
+            n
+        };
+        notes::upsert(&a, "bible:cuv", &mark(note("n1", "第一版", 10))).unwrap();
+        send(&a, "A", &mut b, "B", 0);
+        let (r, m): (String, String) = b.query_row("SELECT canonical_ref, source_module FROM notes WHERE id = 'n1'", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        assert_eq!((r.as_str(), m.as_str()), ("JHN.3.16", "org.marginalia.bible"));
+        assert_eq!(b.query_row("SELECT book_id FROM notes WHERE id = 'n1'", [], |r| r.get::<_, String>(0)).unwrap(), "bible:cuv");
+        // both sides edit it after they met (at 100): the loser's copy in the bin keeps the position and the module
+        notes::upsert(&b, "bible:cuv", &mark(note("n1", "B 的版本", 200))).unwrap();
+        notes::upsert(&a, "bible:cuv", &mark(note("n1", "A 的版本", 300))).unwrap();
+        let rep = send(&a, "A", &mut b, "B", 100);
+        assert_eq!(rep.conflicts, 1);
+        let payload: String = b.query_row("SELECT payload FROM trash WHERE id LIKE 'conflict-%'", [], |r| r.get(0)).unwrap();
+        let p: Value = serde_json::from_str(&payload).unwrap();
+        assert_eq!(p["note"]["note"], "B 的版本");
+        assert_eq!(p["note"]["canonicalRef"], "JHN.3.16");
+        assert_eq!(p["note"]["sourceModule"], "org.marginalia.bible");
+    }
+
+    #[test]
     fn a_note_written_on_one_device_arrives_on_the_other_with_its_own_time() {
         let a = db();
         let mut b = db();

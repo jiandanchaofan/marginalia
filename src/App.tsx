@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { isFreeNote, type BookRecord } from "./core/types";
 import { formatOf } from "./core/formats";
 import { openBook as openBookDoc } from "./openBook";
+import { epubCover, storeCover } from "./core/cover";
+import { registerBuiltins } from "./host/builtins";
+import { moduleName, setEnabled } from "./host/registry";
 import {
   confirmDialog,
   deleteBook,
@@ -120,6 +123,10 @@ export default function App() {
     window.setTimeout(() => setToast((cur) => (cur === msg ? null : cur)), 4200);
   }, []);
 
+  // the built-in modules: made known once, then exactly the ones the user switched on are running
+  useEffect(() => registerBuiltins(), []);
+  useEffect(() => setEnabled(settings.modules ?? []), [settings.modules]);
+
   useEffect(() => {
     loadLibrary().then(
       (b) => {
@@ -149,6 +156,28 @@ export default function App() {
   const updateBook = useCallback((id: string, p: Partial<BookRecord>) => {
     setBooks((list) => list.map((b) => (b.id === id ? { ...b, ...p } : b)));
   }, []);
+
+  // EPUBs get their own cover on the shelf: taken out of the file once (also for books imported earlier), one at a time.
+  const coverBusy = useRef(false);
+  useEffect(() => {
+    if (!loaded.current || coverBusy.current) return;
+    const next = books.find((b) => b.format === "epub" && !b.coverId && !b.coverTried);
+    if (!next) return;
+    coverBusy.current = true;
+    (async () => {
+      let id: string | null = null;
+      try {
+        const blob = await epubCover(await readBook(next.id, next.ext));
+        id = blob ? await storeCover(blob) : null;
+      } catch {
+        /* unreadable here (e.g. the file is not on this device): try again another time */
+        coverBusy.current = false;
+        return;
+      }
+      coverBusy.current = false;
+      updateBook(next.id, id ? { coverId: id } : { coverTried: true });
+    })();
+  }, [books, updateBook]);
 
   /** Import files/paths, read their metadata, and open the book when exactly one was imported. */
   // Big files are copied in the background; the Rust side reports how far it got.
@@ -372,6 +401,11 @@ export default function App() {
   };
 
   const openNote = (hit: NoteHit) => {
+    // a note of a module written on a document that has no file here: only that module can open it
+    if (!booksRef.current.some((b) => b.id === hit.bookId)) {
+      notify(hit.note.sourceModule ? t("app.moduleOff", { module: moduleName(hit.note.sourceModule) }) : t("app.bookGone"));
+      return;
+    }
     setFocusText(null);
     setFocusNoteId(hit.note.id);
     updateBook(hit.bookId, { lastOpenedAt: Date.now() });
@@ -552,6 +586,7 @@ export default function App() {
           onOpen={(b) => {
             updateBook(b.id, { lastOpenedAt: Date.now() });
             setFocusText(null);
+            setFocusNoteId(null);
             setOpenId(b.id);
           }}
           onRemove={removeBook}

@@ -14,6 +14,7 @@ import { reviewStore } from "../review/store";
 import { syncIndex, useIndexState } from "../search/indexer";
 import { KeysPane } from "../palette/KeysPane";
 import { SyncPane } from "../sync/SyncPane";
+import { failureOf, knownModules, useRegistry } from "../host/registry";
 import { SYNC_VISIBLE } from "../sync/visible";
 import { DEFAULT_WEEK_TAG } from "../settings";
 import { normalizeTag } from "../notes/tags";
@@ -69,6 +70,7 @@ export function SettingsDialog({ settings, books, onChange, onClose, notify, ini
           {tab === "general" && isTauri && <CardsPane notify={notify} />}
           {tab === "general" && <ReadingPane s={settings} onChange={onChange} notify={notify} />}
           {tab === "general" && <BookSearchPane s={settings} onChange={onChange} books={books} />}
+          {tab === "general" && <ModulesPane s={settings} onChange={onChange} />}
           {tab === "general" && <DeletePane s={settings} onChange={onChange} />}
           {tab === "keys" && <KeysPane s={settings} onChange={onChange} />}
           {tab === "backup" && SYNC_VISIBLE && <SyncPane notify={notify} />}
@@ -409,6 +411,35 @@ function ReadingPane({ s, onChange, notify }: { s: Settings; onChange(p: Partial
       </div>
     </div>
     </>
+  );
+}
+
+/** Modules built into this edition, each switched on or off. Shows nothing when the build has none. */
+function ModulesPane({ s, onChange }: { s: Settings; onChange(p: Partial<Settings>): void }) {
+  useRegistry();
+  const list = knownModules();
+  if (!list.length) return null;
+  const on = new Set(s.modules ?? []);
+  const flip = (id: string, v: boolean) => {
+    if (v) on.add(id);
+    else on.delete(id);
+    onChange({ modules: [...on] });
+  };
+  return (
+    <div className="panel settings-panel">
+      <div className="panel-title">{t("mod.title")}</div>
+      <div className="settings-body">
+        <p className="settings-hint">{t("mod.hint")}</p>
+        {list.map((m) => (
+          <div key={m.id}>
+            <label className="check">
+              <input type="checkbox" checked={on.has(m.id)} onChange={(e) => flip(m.id, e.target.checked)} /> {m.name}
+            </label>
+            {on.has(m.id) && failureOf(m.id) && <p className="sy-err">{t("mod.failed", { err: failureOf(m.id)! })}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

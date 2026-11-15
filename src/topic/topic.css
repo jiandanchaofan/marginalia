@@ -72,3 +72,15 @@
 .tp-scope.off .tp-kidrow, .tp-scope.off .tp-kidlabel { opacity: 0.45; }
 .tp-note { font-size: 12px; color: var(--muted); }
 .tp-notes { max-width: none; }
+
+/* the books of a topic: the same rows as "continue reading" on the shelf */
+.tp-blist { display: flex; flex-direction: column; gap: 2px; }
+.tp-brow { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title meta" "bar bar"; align-items: baseline; column-gap: 16px; row-gap: 5px; width: 100%; padding: 8px 8px 9px; border: 0; border-radius: 10px; background: none; color: inherit; text-align: left; cursor: pointer; transition: background 0.15s; font: inherit; }
+.tp-brow:hover:not(:disabled) { background: var(--soft); }
+.tp-brow:disabled { cursor: default; }
+.tp-btitle { grid-area: title; font-family: var(--read-font); font-size: 14.5px; font-weight: 600; letter-spacing: 0.03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-bmeta { grid-area: meta; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tp-bbar { grid-area: bar; height: 3px; border-radius: 3px; background: var(--soft); overflow: hidden; }
+.tp-brow:hover .tp-bbar { background: var(--card); }
+.tp-bbar i { display: block; height: 100%; background: var(--ui-accent); font-style: normal; }
+.tp-sec .tp-bbar { background: color-mix(in srgb, var(--sec) 14%, transparent); }

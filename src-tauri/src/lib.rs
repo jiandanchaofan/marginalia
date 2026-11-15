@@ -424,6 +424,7 @@ pub fn run() {
             feeds::items_prune,
             feeds::items_unread_count,
             notes::notes_for_book,
+            notes::notes_by_ref,
             notes::notes_put_book,
             notes::note_update,
             notes::note_delete,

@@ -22,6 +22,8 @@ export function lineBoxes(range: Range, origin: DOMRect): Box[] {
     const s = t === range.startContainer ? range.startOffset : 0;
     const e = t === range.endContainer ? range.endOffset : t.length;
     if (e <= s) continue;
+    // PDF pages hold runs of blank cells that have no text; a selection across lines must not mark them
+    if (!t.data.slice(s, e).trim() && t.parentElement?.closest(".textLayer")) continue;
     sub.setStart(t, s);
     sub.setEnd(t, e);
     for (const r of sub.getClientRects()) {

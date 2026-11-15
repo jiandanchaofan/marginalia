@@ -7,6 +7,7 @@ import type { Theme } from "../settings";
 import { NoteText } from "./NoteText";
 import { NoteImages, RegionQuote } from "./NoteImages";
 import { fmtDate, t } from "../i18n";
+import { docLabel } from "../host/label";
 
 const PER_DAY = 5;
 const DAY = 86_400_000;
@@ -51,7 +52,7 @@ export function ReviewCard({ hit: h, books, theme, onOpenNote, delay = 0, childr
         </>
       )}
       <footer>
-        {h.note.kind !== "free" && <span className="nb-book">{b?.title ?? t("kind.removedBook")}</span>}
+        {h.note.kind !== "free" && <span className="nb-book">{docLabel(b?.title, h.note)}</span>}
         <span>{ago(h.note.createdAt)}</span>
         {h.note.kind !== "free" && (
           <button className="review-open" onClick={() => onOpenNote(h)}>

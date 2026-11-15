@@ -3,7 +3,7 @@
 export const DEFAULT_KEYS: Record<string, string> = {
   palette: "Ctrl+K",
   "new-note": "Ctrl+N",
-  "new-task": "Ctrl+Shift+N",
+  "new-task": "Ctrl+T",
   import: "Ctrl+O",
   "page-notes": "Alt+1",
   "page-shelf": "Alt+2",

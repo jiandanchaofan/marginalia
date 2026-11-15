@@ -15,7 +15,7 @@ import "./topic.css";
 const FIRST = 20;
 
 /** One tag as a page of its own: its books, notes, to-dos and the goals they support. */
-export function TopicPage({ tag, books, theme, onOpenNote, onPickTag, onBack }: { tag: string; books: Map<string, BookRecord>; theme: Theme; onOpenNote(h: NoteHit): void; onPickTag(tag: string): void; onBack(): void }) {
+export function TopicPage({ tag, books, theme, onOpenNote, onOpenBook, onPickTag, onBack }: { tag: string; books: Map<string, BookRecord>; theme: Theme; onOpenNote(h: NoteHit): void; onOpenBook(id: string): void; onPickTag(tag: string): void; onBack(): void }) {
   const version = useNotesVersion();
   const allTasks = useTasks();
   const { goals, links } = useGoals();
@@ -109,12 +109,25 @@ export function TopicPage({ tag, books, theme, onOpenNote, onPickTag, onBack }: 
       {bookRows.length > 0 && (
         <section className="tp-sec books">
           <h3><BookOpen size={15} /> {t("tp.books")} <i>{bookRows.length}</i></h3>
-          <div className="tp-books">
-            {bookRows.map((b) => (
-              <span key={b.id} className="tp-book">
-                <BookOpen size={13} /> {books.get(b.id)?.title ?? t("kind.removedBook")} <i>{b.count}</i>
-              </span>
-            ))}
+          <div className="tp-blist">
+            {bookRows.map((b) => {
+              const rec = books.get(b.id);
+              const pctRead = rec ? Math.round(rec.progress * 100) : 0;
+              return (
+                <button key={b.id} className="tp-brow" disabled={!rec} onClick={() => onOpenBook(b.id)}>
+                  <span className="tp-btitle">{rec?.title ?? t("kind.removedBook")}</span>
+                  <span className="tp-bmeta">
+                    {rec ? `${pctRead}% · ` : ""}
+                    {t("unit.notes", { n: b.count })}
+                  </span>
+                  {rec && (
+                    <span className="tp-bbar">
+                      <i style={{ width: `${pctRead}%` }} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </section>
       )}

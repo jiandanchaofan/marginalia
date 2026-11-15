@@ -333,6 +333,11 @@ export function Tasks({ books, notify, onOpenNote }: Props) {
           <span className="side-label">{tr("tasks.noGoal")}</span>
           {noGoalCount > 0 && <span className="tree-count">{noGoalCount}</span>}
         </button>
+        <button className={`side-item ${view === "trash" ? "on" : ""}`} onClick={() => (setView("trash"), setDrawer(false))}>
+          <Trash2 size={14} />
+          <span className="side-label">{tr("tr.title")}</span>
+          {trashCount > 0 && <span className="tree-count">{trashCount}</span>}
+        </button>
       </div>
       <div className="side-title">{tr("tasks.goals")}</div>
       <div className="side-section">
@@ -352,11 +357,6 @@ export function Tasks({ books, notify, onOpenNote }: Props) {
         <button className={`side-item ${view === "weekly" ? "on" : ""}`} onClick={() => (setView("weekly"), setDrawer(false))}>
           <CalendarCheck size={14} />
           <span className="side-label">{tr("wr.nav")}</span>
-        </button>
-        <button className={`side-item ${view === "trash" ? "on" : ""}`} onClick={() => (setView("trash"), setDrawer(false))}>
-          <Trash2 size={14} />
-          <span className="side-label">{tr("tr.title")}</span>
-          {trashCount > 0 && <span className="tree-count">{trashCount}</span>}
         </button>
       </div>
       <div className="side-title">{tr("hub.tags")}</div>

@@ -4,6 +4,7 @@ import { tagSpans } from "./tags";
 import type { NoteHit, NoteQuery } from "./store";
 import { anyLang, collate, fmtDate, fmtDateTime, t } from "../i18n";
 import type { Key } from "../i18n/zh-Hans";
+import { docLabel } from "../host/label";
 
 export interface NotesFilter {
   q: string;
@@ -149,6 +150,9 @@ export function describeFilter(f: NotesFilter, books: Map<string, BookRecord>, s
 export const imageEmbeds = (ids?: string[]) => (ids ?? []).map((id) => `![[${id}]]`);
 export const imageIdsOf = (hits: { note: { images?: string[]; anchor?: { thumb?: string } } }[]) => [...new Set(hits.flatMap((h) => [...(h.note.images ?? []), ...(h.note.anchor?.thumb ? [h.note.anchor.thumb] : [])]))];
 
+/** "JHN.3.16 · " in front of the date line of a note that has a canonical position. */
+const refPrefix = (n: { canonicalRef?: string }) => (n.canonicalRef ? `${n.canonicalRef} · ` : "");
+
 export function notesToMarkdown(hits: NoteHit[], books: Map<string, BookRecord>, heading: string, relations?: Map<string, string[]>) {
   /** "相关笔记" block after a note: how it is connected to other notes (see `relationsFor`). */
   const rel = (id: string) => (relations?.get(id)?.length ? [`**${t("export.related")}**`, "", ...relations.get(id)!.map((r) => `- ${r}`), ""] : []);
@@ -162,7 +166,7 @@ export function notesToMarkdown(hits: NoteHit[], books: Map<string, BookRecord>,
   const free = hits.filter((h) => h.note.kind === "free").sort((x, y) => y.note.createdAt - x.note.createdAt);
   if (free.length) {
     lines.push(`## ${t("export.free")}`, "");
-    for (const { note } of free) lines.push(note.note.trim(), ...(note.images?.length ? ["", ...imageEmbeds(note.images)] : []), "", ...rel(note.id), `<sub>${new Date(note.createdAt).toLocaleString()}</sub>`, "", "---", "");
+    for (const { note } of free) lines.push(note.note.trim(), ...(note.images?.length ? ["", ...imageEmbeds(note.images)] : []), "", ...rel(note.id), `<sub>${refPrefix(note)}${new Date(note.createdAt).toLocaleString()}</sub>`, "", "---", "");
   }
   let current = "";
   let sectionOpen = false; // inside the 整体笔记 block of the current book
@@ -172,12 +176,12 @@ export function notesToMarkdown(hits: NoteHit[], books: Map<string, BookRecord>,
       current = bookId;
       sectionOpen = false;
       const b = books.get(bookId);
-      lines.push(`## ${t("kind.bookQuote", { title: b?.title ?? t("kind.removedBook") })}${b?.author ? ` · ${b.author}` : ""}`, "");
+      lines.push(`## ${t("kind.bookQuote", { title: docLabel(b?.title, note) })}${b?.author ? ` · ${b.author}` : ""}`, "");
     }
     if (note.kind === "doc") {
       if (!sectionOpen) lines.push(`### ${t("export.docNotes")}`, "");
       sectionOpen = true;
-      lines.push(note.note.trim(), ...(note.images?.length ? ["", ...imageEmbeds(note.images)] : []), "", ...rel(note.id), `<sub>${new Date(note.createdAt).toLocaleDateString()}</sub>`, "", "---", "");
+      lines.push(note.note.trim(), ...(note.images?.length ? ["", ...imageEmbeds(note.images)] : []), "", ...rel(note.id), `<sub>${refPrefix(note)}${new Date(note.createdAt).toLocaleDateString()}</sub>`, "", "---", "");
       continue;
     }
     if (sectionOpen) lines.push(`### ${t("export.excerpts")}`, "");
@@ -187,7 +191,7 @@ export function notesToMarkdown(hits: NoteHit[], books: Map<string, BookRecord>,
     if (note.note.trim()) lines.push(note.note.trim(), "");
     if (note.images?.length) lines.push(...imageEmbeds(note.images), "");
     lines.push(...rel(note.id));
-    lines.push(`<sub>${swatch(note.color).name} · ${styleName(note.style)} · ${new Date(note.createdAt).toLocaleDateString()}</sub>`, "", "---", "");
+    lines.push(`<sub>${refPrefix(note)}${swatch(note.color).name} · ${styleName(note.style)} · ${new Date(note.createdAt).toLocaleDateString()}</sub>`, "", "---", "");
   }
   return lines.join("\n");
 }

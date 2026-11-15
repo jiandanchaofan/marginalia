@@ -26,6 +26,7 @@ interface Props {
   counts: Record<string, number>;
   theme: Theme;
   onOpenNote(hit: NoteHit): void;
+  onOpenBook(id: string): void;
   notify(msg: string): void;
 }
 
@@ -39,7 +40,7 @@ interface SavedFilter {
 }
 const SAVED_FILE = "saved_filters.json";
 
-export function NotesHub({ books, counts, theme, onOpenNote, notify }: Props) {
+export function NotesHub({ books, counts, theme, onOpenNote, onOpenBook, notify }: Props) {
   const version = useNotesVersion();
   const [tags, setTags] = useState<TagInfo[]>([]);
   const [filter, setFilter] = useState<NotesFilter>(EMPTY_FILTER);
@@ -343,7 +344,7 @@ export function NotesHub({ books, counts, theme, onOpenNote, notify }: Props) {
             <button className="icon-btn hub-drawer-btn review-drawer" title={t("hub.drawer")} onClick={() => setDrawer((d) => !d)}>
               <SlidersHorizontal size={17} />
             </button>
-            <TopicPage tag={filter.tags[0]} books={bookMap} theme={theme} onOpenNote={onOpenNote} onPickTag={(x) => setFilter((f) => ({ ...f, tags: [x] }))} onBack={() => setMode(fromOverview ? "topics" : "notes")} />
+            <TopicPage tag={filter.tags[0]} books={bookMap} theme={theme} onOpenNote={onOpenNote} onOpenBook={onOpenBook} onPickTag={(x) => setFilter((f) => ({ ...f, tags: [x] }))} onBack={() => setMode(fromOverview ? "topics" : "notes")} />
           </>
         ) : mode === "review" ? (
           <>

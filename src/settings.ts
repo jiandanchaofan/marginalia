@@ -31,6 +31,8 @@ export interface Settings {
   bookSearch?: boolean;
   /** Ask before moving a note or to-do to the recycle bin (default on). */
   confirmDelete?: boolean;
+  /** Ids of the built-in modules that are switched on (none by default). */
+  modules?: string[];
   /** Keyboard shortcuts the user changed, by command id ("" = none). */
   shortcuts?: Record<string, string>;
   theme: Theme;

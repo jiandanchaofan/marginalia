@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { docLabel } from "../host/label";
 import { ArrowUpRight, Check, CheckSquare, Copy, Download, FilePlus2, Hash, ImagePlus, Link2, Palette, Pencil, Search, Square, Star, StickyNote, Tag, Trash2, X } from "lucide-react";
 import { isDocNote, isFreeNote, type Annotation, type BookRecord, type NoteLink } from "../core/types";
 import { NoteLinks } from "./NoteLinks";
@@ -282,7 +283,7 @@ export function NotesBrowser(props: Props) {
               <NoteItem
                 hit={hit}
                 theme={theme}
-                bookTitle={source || isFreeNote(hit.note) ? undefined : book?.title}
+                bookTitle={source || isFreeNote(hit.note) ? undefined : book?.title ?? (hit.note.sourceModule ? docLabel(undefined, hit.note) : undefined)}
                 noun={book && (book.format === "md" || book.format === "html") ? t("noun.article") : t("noun.book")}
                 terms={query.terms}
                 activeTags={filter.tags}

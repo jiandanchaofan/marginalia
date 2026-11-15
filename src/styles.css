@@ -8784,3 +8784,10 @@ body.task-dragging * {
 .settings-pane.cards .backup-folder { align-self: stretch; margin-bottom: 4px; }
 .settings-pane.cards .backup-line { align-self: stretch; padding-top: 4px; }
 .settings-pane.cards .backup-note { padding: 0 4px; }
+
+/* a real cover picture: it fills the cover; the generated title and author step aside (the title is under the cover) */
+.cover.has-img { padding: 0; }
+.cover-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cover.has-img .cover-title, .cover.has-img .cover-author, .cover.has-img .cover-excerpt, .cover.has-img .cover-format { display: none; }
+
+.textLayer span.ws::selection { background: transparent; }

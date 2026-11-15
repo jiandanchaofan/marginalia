@@ -193,6 +193,10 @@ async function build(loadingTask: ReturnType<typeof pdfjs.getDocument>, fileName
       const layer = new pdfjs.TextLayer({ textContentSource: page.streamTextContent(), container: text, viewport });
       await Promise.all([task.promise, layer.render()]);
       if (s.text !== text) return; // released meanwhile
+      // blank cells (spans with no text, common in some PDFs): the selection colour skips them, copying still keeps them
+      text.querySelectorAll("span").forEach((sp) => {
+        if (!sp.childElementCount && !sp.textContent?.trim()) sp.classList.add("ws");
+      });
       s.state = "ready";
       opts?.onSectionReady(i);
     } catch (err) {

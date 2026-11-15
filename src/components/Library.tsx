@@ -15,12 +15,19 @@ import { InterestDialog } from "./InterestDialog";
 import { BookInfoDialog } from "./BookInfoDialog";
 import { BatchTagDialog } from "./BatchTagDialog";
 import { DOC_TYPES, DocTypeBadge, docType } from "./DocTypeBadge";
+import { useImage } from "../notes/images";
 import { fmtDate, t } from "../i18n";
 import { ReadingHeat } from "../reading/ReadingHeat";
 import { AppLogo } from "./AppLogo";
 
 /** Pseudo-interest used by the 未分类 chip. */
 const NONE = "\u0000none";
+
+/** The cover picture of an EPUB; until it loads (or if it cannot) the coloured cover shows through. */
+function CoverImg({ id }: { id: string }) {
+  const { url } = useImage(id);
+  return url ? <img className="cover-img" src={url} alt="" draggable={false} /> : null;
+}
 
 type ShelfMode = "cover" | "list";
 const MODE_KEY = "reader:shelf-mode";
@@ -286,7 +293,8 @@ export function Library(props: Props) {
     return (
       <div key={keyPrefix + b.id} className={`book ${selecting && selected.has(b.id) ? "selected" : ""}`} onClick={(e) => (selecting ? toggleSel(b, e.shiftKey) : onOpen(b))}>
         {selecting && <span className="sel-check">{selected.has(b.id) ? <CheckSquare size={20} /> : <Square size={20} />}</span>}
-        <div className={`cover ${b.sourceUrl ? "web" : ""}`} style={{ background: `linear-gradient(155deg, ${from}, ${to})` }}>
+        <div className={`cover ${b.sourceUrl ? "web" : ""} ${b.coverId ? "has-img" : ""}`} style={{ background: `linear-gradient(155deg, ${from}, ${to})` }}>
+          {b.coverId && <CoverImg id={b.coverId} />}
           <span className="cover-format">{b.sourceUrl ? b.siteName || t("doctype.web") : (FORMAT_LABEL[b.format] ?? b.format)}</span>
           <DocTypeBadge type={type} />
           {docCounts[b.id] > 0 && (
@@ -411,7 +419,7 @@ export function Library(props: Props) {
       ) : view === "tasks" ? (
         <Tasks books={bookMap} notify={notify} onOpenNote={onOpenNote} />
       ) : view === "notes" ? (
-        <NotesHub books={books} counts={counts} theme={theme} onOpenNote={onOpenNote} notify={notify} />
+        <NotesHub books={books} counts={counts} theme={theme} onOpenNote={onOpenNote} onOpenBook={(id) => { const b = books.find((x) => x.id === id); if (b) onOpen(b); }} notify={notify} />
       ) : !books.length ? (
         <div className="lib-empty" onClick={onImport}>
           <BookOpen size={40} strokeWidth={1.2} />

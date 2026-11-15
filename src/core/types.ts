@@ -59,6 +59,10 @@ export interface Annotation {
   kind?: "passage" | "doc" | "free";
   /** Attached pictures (ids from `notes/images.ts`), shown under the note text. */
   images?: string[];
+  /** Where the note belongs in a shared text system (OSIS-style, e.g. "JHN.3.16"); empty / absent for ordinary notes. */
+  canonicalRef?: string;
+  /** Id of the module that wrote the note (e.g. "org.marginalia.bible"). Notes stay readable as plain cards without it. */
+  sourceModule?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -150,6 +154,9 @@ export interface BookRecord {
   origTitle?: string;
   /** The user chose to keep this file in the cloud (cloud sync uploads it). */
   cloud?: boolean;
+  /** Shelf cover: the id of a stored picture taken from the file. `coverTried` means there was none to take. */
+  coverId?: string;
+  coverTried?: boolean;
   /** Free-text remark (附注) shown on the shelf. */
   remark?: string;
 }

@@ -8,6 +8,7 @@ import { useTasks } from "../tasks/useTasks";
 import { useGoals } from "../tasks/useGoals";
 import { goalLabel } from "../tasks/goals";
 import { t } from "../i18n";
+import { docLabel } from "../host/label";
 import { allCommands, type Actions } from "./commands";
 import { bookIndex, type Found } from "../search/backend";
 import { postIntent } from "./intent";
@@ -244,7 +245,7 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
             key: `n:${h.note.id}`,
             kind: "note" as const,
             title: notePreview(h.note, 90),
-            sub: t("pal.noteMeta", { src: isFreeNote(h.note) ? t("hub.free") : byBook.get(h.bookId) ?? t("kind.removedBook"), when: relTime(h.note.createdAt) }),
+            sub: t("pal.noteMeta", { src: isFreeNote(h.note) ? t("hub.free") : docLabel(byBook.get(h.bookId), h.note), when: relTime(h.note.createdAt) }),
             run: () => {
               if (isFreeNote(h.note)) (postIntent({ to: "find", q: text.trim() }), actions.view("notes"));
               else onOpenNote(h);

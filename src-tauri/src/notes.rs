@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS notes(
   side_locked INTEGER NOT NULL DEFAULT 0,
   kind TEXT NOT NULL DEFAULT 'passage',
   images TEXT NOT NULL DEFAULT '',
+  canonical_ref TEXT NOT NULL DEFAULT '',
+  source_module TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -350,6 +352,12 @@ pub struct Note {
     /// Ids of attached pictures (files under `images/`), in display order.
     #[serde(default)]
     pub images: Vec<String>,
+    /// Canonical position in a shared text system (OSIS-style, e.g. `JHN.3.16` or `JHN.3.16-18`); empty for ordinary notes.
+    #[serde(default)]
+    pub canonical_ref: String,
+    /// Id of the module that wrote the note (e.g. `org.marginalia.bible`); empty for ordinary notes.
+    #[serde(default)]
+    pub source_module: String,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -407,7 +415,7 @@ pub struct Filter {
 /// To change the layout in a later release: bump this, add an `if ver < N { ... }` step to `upgrade`
 /// (additive changes only: new tables / columns with defaults), and never edit or drop old data in place.
 /// Databases from before versioning report 0 and are brought up to date by the idempotent steps.
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 
 pub fn open(dir: &Path) -> rusqlite::Result<Connection> {
     let conn = Connection::open(dir.join("reader.db"))?;
@@ -459,6 +467,18 @@ fn upgrade(conn: &Connection) -> rusqlite::Result<()> {
     if !has_images {
         conn.execute("ALTER TABLE notes ADD COLUMN images TEXT NOT NULL DEFAULT ''", [])?;
     }
+    // Where in a canonical text the note belongs (e.g. JHN.3.16) and which module wrote it; empty for ordinary notes.
+    let note_cols: Vec<String> = conn
+        .prepare("PRAGMA table_info(notes)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .filter_map(Result::ok)
+        .collect();
+    for col in ["canonical_ref", "source_module"] {
+        if !note_cols.iter().any(|c| c == col) {
+            conn.execute(&format!("ALTER TABLE notes ADD COLUMN {col} TEXT NOT NULL DEFAULT ''"), [])?;
+        }
+    }
+    conn.execute("CREATE INDEX IF NOT EXISTS notes_ref ON notes(canonical_ref) WHERE canonical_ref <> ''", [])?;
     let link_cols: Vec<String> = conn
         .prepare("PRAGMA table_info(note_links)")?
         .query_map([], |r| r.get::<_, String>(1))?
@@ -539,12 +559,13 @@ pub(crate) fn upsert(conn: &Connection, book_id: &str, n: &Note) -> rusqlite::Re
     let quote = n.anchor.get("exact").and_then(Value::as_str).unwrap_or("");
     let tags = parse_tags(&n.note);
     conn.execute(
-        "INSERT INTO notes(id, book_id, section, pos, anchor, quote, color, style, note, thought, side, side_locked, created_at, updated_at, kind, images)
-         VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+        "INSERT INTO notes(id, book_id, section, pos, anchor, quote, color, style, note, thought, side, side_locked, created_at, updated_at, kind, images, canonical_ref, source_module)
+         VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
          ON CONFLICT(id) DO UPDATE SET book_id = excluded.book_id, section = excluded.section, pos = excluded.pos,
            anchor = excluded.anchor, quote = excluded.quote, color = excluded.color, style = excluded.style,
            note = excluded.note, thought = excluded.thought, side = excluded.side, side_locked = excluded.side_locked,
-           created_at = excluded.created_at, updated_at = excluded.updated_at, kind = excluded.kind, images = excluded.images",
+           created_at = excluded.created_at, updated_at = excluded.updated_at, kind = excluded.kind, images = excluded.images,
+           canonical_ref = excluded.canonical_ref, source_module = excluded.source_module",
         params![
             n.id,
             book_id,
@@ -561,7 +582,9 @@ pub(crate) fn upsert(conn: &Connection, book_id: &str, n: &Note) -> rusqlite::Re
             n.created_at,
             n.updated_at,
             norm_kind(&n.kind),
-            n.images.join(",")
+            n.images.join(","),
+            n.canonical_ref,
+            n.source_module
         ],
     )?;
     let rowid: i64 = conn.query_row("SELECT rowid FROM notes WHERE id = ?1", [&n.id], |r| r.get(0))?;
@@ -583,7 +606,7 @@ pub(crate) fn delete_ids(conn: &Connection, ids: &[String]) -> rusqlite::Result<
 }
 
 const NOTE_COLS: &str = "n.id, n.anchor, n.color, n.style, n.note, n.side, n.side_locked, n.created_at, n.updated_at, n.book_id,
-  (SELECT group_concat(tag, char(31)) FROM note_tags t WHERE t.note_id = n.id), n.kind, n.images";
+  (SELECT group_concat(tag, char(31)) FROM note_tags t WHERE t.note_id = n.id), n.kind, n.images, n.canonical_ref, n.source_module";
 
 fn row_hit(r: &rusqlite::Row) -> rusqlite::Result<Hit> {
     let anchor: String = r.get(1)?;
@@ -602,6 +625,8 @@ fn row_hit(r: &rusqlite::Row) -> rusqlite::Result<Hit> {
             updated_at: r.get(8)?,
             kind: r.get(11)?,
             images: r.get::<_, String>(12)?.split(',').filter(|x| !x.is_empty()).map(String::from).collect(),
+            canonical_ref: r.get(13)?,
+            source_module: r.get(14)?,
             tags: tags.map(|s| s.split('\u{1f}').map(String::from).collect()).unwrap_or_default(),
         },
     })
@@ -628,6 +653,29 @@ fn notes_where(conn: &Connection, sql_where: &str, args: Vec<Sql>, order: &str, 
 type R<T> = Result<T, String>;
 fn e<E: std::fmt::Display>(err: E) -> String {
     err.to_string()
+}
+
+/// Notes at a canonical position: exactly `r`, a range that starts there, or anything inside it
+/// (`JHN.3` finds `JHN.3.16`; `JHN.3.16` finds `JHN.3.16-18`). Uses the `notes_ref` index.
+pub(crate) fn notes_at_ref(conn: &Connection, r: &str) -> rusqlite::Result<Vec<Hit>> {
+    let r = r.trim();
+    if r.is_empty() {
+        return Ok(vec![]);
+    }
+    notes_where(
+        conn,
+        "n.canonical_ref <> '' AND (n.canonical_ref = ?1 OR n.canonical_ref LIKE ?2 OR n.canonical_ref LIKE ?3)",
+        vec![Sql::Text(r.to_string()), Sql::Text(format!("{r}.%")), Sql::Text(format!("{r}-%"))],
+        "n.canonical_ref, n.created_at",
+        -1,
+        0,
+    )
+}
+
+#[tauri::command]
+pub fn notes_by_ref(db: tauri::State<Db>, canonical_ref: String) -> R<Vec<Hit>> {
+    let conn = db.0.lock().map_err(e)?;
+    notes_at_ref(&conn, &canonical_ref).map_err(e)
 }
 
 #[tauri::command]
@@ -1120,6 +1168,8 @@ mod tests {
                 side_locked: false,
                 kind: "passage".into(),
                 images: vec![],
+                canonical_ref: String::new(),
+                source_module: String::new(),
                 created_at: 1_700_000_000_000 + i as i64 * 60_000,
                 updated_at: 1_700_000_000_000 + i as i64 * 60_000,
             };
@@ -1173,6 +1223,8 @@ mod tests {
                 side_locked: false,
                 kind: "passage".into(),
                 images: vec![],
+                canonical_ref: String::new(),
+                source_module: String::new(),
                 created_at: i,
                 updated_at: i,
             };
@@ -1202,6 +1254,8 @@ mod tests {
             side_locked: false,
             kind: "passage".into(),
             images: vec![],
+            canonical_ref: String::new(),
+            source_module: String::new(),
             created_at: 1,
             updated_at: 1,
         }
@@ -1209,6 +1263,47 @@ mod tests {
 
     fn link(id: &str, a: &str, b: &str, label: &str) -> Link {
         Link { id: id.into(), a: a.into(), b: b.into(), label: label.into(), color: String::new(), style: String::new(), side_a: String::new(), side_b: String::new(), created_at: 1, updated_at: 1 }
+    }
+
+    fn mem() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        upgrade(&conn).unwrap();
+        conn
+    }
+
+    #[test]
+    fn a_canonical_position_and_module_are_kept_and_found_by_position() {
+        let conn = mem();
+        let put = |id: &str, r: &str, m: &str| {
+            let mut n = plain_note(id);
+            n.canonical_ref = r.into();
+            n.source_module = m.into();
+            upsert(&conn, "bible:cuv", &n).unwrap();
+        };
+        put("a", "JHN.3.16", "org.marginalia.bible");
+        put("b", "JHN.3.16-18", "org.marginalia.bible");
+        put("c", "JHN.3.17", "org.marginalia.bible");
+        put("d", "JHN.4.1", "org.marginalia.bible");
+        put("e", "JHN.31.1", "org.marginalia.bible"); // not chapter 3
+        put("plain", "", "");
+        let ids = |r: &str| -> Vec<String> { let mut v: Vec<String> = notes_at_ref(&conn, r).unwrap().into_iter().map(|h| h.note.id).collect(); v.sort(); v };
+        assert_eq!(ids("JHN.3.16"), vec!["a", "b"], "the verse itself and a range that starts there");
+        assert_eq!(ids("JHN.3"), vec!["a", "b", "c"], "everything inside the chapter, not JHN.31");
+        assert!(ids("JHN.9").is_empty() && ids("").is_empty());
+        // written and read back unchanged; an ordinary note has neither
+        let got = notes_where(&conn, "n.id = ?", vec![Sql::Text("a".into())], "n.id", -1, 0).unwrap().remove(0).note;
+        assert_eq!((got.canonical_ref.as_str(), got.source_module.as_str()), ("JHN.3.16", "org.marginalia.bible"));
+        let plain = notes_where(&conn, "n.id = ?", vec![Sql::Text("plain".into())], "n.id", -1, 0).unwrap().remove(0).note;
+        assert_eq!((plain.canonical_ref.as_str(), plain.source_module.as_str()), ("", ""));
+        // editing a note keeps what the module wrote unless it is changed
+        let mut again = got.clone();
+        again.note = "edited".into();
+        upsert(&conn, "bible:cuv", &again).unwrap();
+        assert_eq!(ids("JHN.3.16"), vec!["a", "b"]);
+        // an older app's note (no such keys in its JSON) still reads
+        let old: Note = serde_json::from_value(serde_json::json!({"id": "x", "anchor": {}, "color": "amber", "style": "none", "createdAt": 1, "updatedAt": 1})).unwrap();
+        assert_eq!((old.canonical_ref.as_str(), old.source_module.as_str()), ("", ""));
     }
 
     #[test]
@@ -1359,6 +1454,8 @@ mod tests {
             side_locked: false,
             kind: "doc".into(),
             images: vec![],
+            canonical_ref: String::new(),
+            source_module: String::new(),
             created_at: 5,
             updated_at: 5,
         };
@@ -1390,6 +1487,8 @@ mod tests {
             side_locked: false,
             kind: "passage".into(),
             images: vec![],
+            canonical_ref: String::new(),
+            source_module: String::new(),
             created_at: 1,
             updated_at: 1,
         };
@@ -1435,6 +1534,8 @@ mod tests {
                 side_locked: false,
                 kind: "free".into(),
                 images: vec![],
+                canonical_ref: String::new(),
+                source_module: String::new(),
                 created_at: t,
                 updated_at: t,
             };
@@ -1495,6 +1596,9 @@ mod tests {
         let (kind, images, note): (String, String, String) =
             conn.query_row("SELECT kind, images, note FROM notes WHERE id = 'old'", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
         assert_eq!((kind.as_str(), images.as_str(), note.as_str()), ("passage", "", "旧笔记 #标签"));
+        let (cref, module): (String, String) = conn.query_row("SELECT canonical_ref, source_module FROM notes WHERE id = 'old'", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        assert_eq!((cref.as_str(), module.as_str()), ("", ""), "an old note has no canonical position and no module");
+        assert!(conn.query_row("SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name = 'notes_ref'", [], |r| r.get::<_, i64>(0)).unwrap() == 1);
         assert_eq!(conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), SCHEMA_VERSION);
         // the pre-upgrade copy exists and still has the original layout + data
         let backup = Connection::open(dir.join("backups").join(format!("pre-upgrade-v0-to-v{SCHEMA_VERSION}.db"))).unwrap();
