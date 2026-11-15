@@ -161,7 +161,10 @@ export const EN_FONTS: { key: EnFontChoice; label: string; note: string; stack: 
 
 /** The reading font stack: the English font first (CJK characters fall through to the Chinese font). */
 export function bodyFont(s: Pick<Settings, "font" | "fontEn">): string {
-  const en = EN_FONTS.find((f) => f.key === s.fontEn)?.stack;
+  // The English stack ends with a generic family (serif, sans-serif, system-ui). A generic family has Chinese glyphs of
+  // its own, so with it still in front the browser never reached the Chinese font chosen after it: drop the generic
+  // names from the English part and let the Chinese stack (which ends with one) supply them.
+  const en = EN_FONTS.find((f) => f.key === s.fontEn)?.stack?.replace(/,\s*(?:serif|sans-serif|system-ui|ui-serif|ui-sans-serif|monospace)(?=\s*(?:,|$))/g, "");
   return en ? `${en}, ${FONT_STACKS[s.font]}` : FONT_STACKS[s.font];
 }
 
