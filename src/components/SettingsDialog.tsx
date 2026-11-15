@@ -439,12 +439,9 @@ function ModulesPane({ s, onChange }: { s: Settings; onChange(p: Partial<Setting
           </Fragment>
         ))}
         {recognizers().length > 0 && (
-          <>
-            <label className="check sub-option">
-              <input type="checkbox" checked={s.refPreview !== false} onChange={(e) => onChange({ refPreview: e.target.checked })} /> {t("mod.refPreview")}
-            </label>
-            <p className="settings-hint sub-option">{t("mod.refPreviewHint")}</p>
-          </>
+          <label className="check sub-option">
+            <input type="checkbox" checked={s.refPreview !== false} onChange={(e) => onChange({ refPreview: e.target.checked })} /> {t("mod.refPreview")}
+          </label>
         )}
       </div>
     </div>
