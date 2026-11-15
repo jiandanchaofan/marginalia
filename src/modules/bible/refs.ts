@@ -4,6 +4,7 @@ import { NAME_INDEX, norm } from "./names";
 import { currentVersion, docIdOf } from "./ids";
 import { BUNDLED, loadPack } from "./packs";
 import { getCompare } from "./compare";
+import type { Row } from "./render";
 
 export interface ParsedRef {
   book: string;
@@ -91,7 +92,7 @@ function plausible(candidate: string): boolean {
 /** References inside a piece of text, as "约 3:16" or "Rom 8:28-30". */
 export function find(text: string): RefMatch[] {
   const out: RefMatch[] = [];
-  const re = /([一-鿿]{1,7}|(?:[1-3]|I{1,3})?\s?[A-Za-z]{2,14}\.?)\s*(\d{1,3})\s*(?:[:：.章]\s*(\d{1,3})\s*(?:[-–至到]\s*(\d{1,3}))?\s*节?)/g;
+  const re = /([一-鿿]{1,7}|(?:[1-3]|I{1,3})?\s?[A-Za-z]{2,14}\.?)\s*(\d{1,3})\s*(?:[:：.·章]\s*(\d{1,3})\s*(?:[-–—至到]\s*(\d{1,3}))?\s*节?)/g;
   for (const m of text.matchAll(re)) {
     const body = m[0];
     // the book name is the end of what came before the numbers; cut words off the front until it is one
@@ -120,7 +121,7 @@ export async function preview(ref: string): Promise<{ title: string; html: strin
   const main = currentVersion(ids);
   const pack = await loadPack(main);
   const [from, to] = (v ?? "").split("-").map(Number);
-  const pick = (rows: [number, number, number, string][]) => rows.filter((r) => r[0] === +c && r[1] > 0 && (!from || (r[1] >= from && r[1] <= (to || from))));
+  const pick = (rows: Row[]) => rows.filter((r) => r[0] === +c && r[1] > 0 && (!from || (r[1] >= from && r[1] <= (to || from))));
   const rows = pick(pack.books[book] ?? []);
   if (!rows.length) return null;
   const zh = pack.lang.startsWith("zh");

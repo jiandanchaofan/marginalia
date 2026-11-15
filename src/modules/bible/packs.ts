@@ -4,6 +4,7 @@
  */
 import cuvHans from "./data/cuv-hans.json.gz?url";
 import web from "./data/web.json.gz?url";
+import type { Row } from "./render";
 
 export interface Pack {
   format: string;
@@ -12,7 +13,7 @@ export interface Pack {
   lang: string;
   license: string;
   /** book id -> rows of [chapter, verse, verseEnd, text]; verse 0 is a heading some psalms carry. */
-  books: Record<string, [number, number, number, string][]>;
+  books: Record<string, Row[]>;
 }
 
 export const BUNDLED: { id: string; name: string; short: string; lang: string; url: string }[] = [

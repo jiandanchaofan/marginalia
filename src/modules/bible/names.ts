@@ -76,7 +76,7 @@ export const norm = (s: string) =>
   s
     .toLowerCase()
     .replace(/[\s.．。]+/g, "")
-    .replace(/：/g, ":")
+    .replace(/[：·・]/g, ":")
     .replace(/[－–—~～]/g, "-")
     .replace(/[，,]/g, ",");
 
