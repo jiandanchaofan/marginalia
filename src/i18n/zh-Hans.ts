@@ -1446,6 +1446,7 @@ export const zhHans = {
   "mod.failed": "没能启动：{err}",
   "pal.refs": "经文",
   "note.fromDoc": "来自 {name}",
+  "mod.refPreview": "鼠标停在「约 3:16」这样的经文引用上时，显示经文",
   "tp.back": "回到笔记列表",
   "tp.stat": "{notes} 条笔记 · {books} 本书 · {tasks} 个待办（{done} 已完成）",
   "tp.withKids": "包含子标签",

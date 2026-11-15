@@ -6,6 +6,7 @@ import { epubCover, storeCover } from "./core/cover";
 import { registerBuiltins } from "./host/builtins";
 import { moduleName, setEnabled } from "./host/registry";
 import { isVirtualDoc } from "./host/virtualDoc";
+import { RefPreviewHost } from "./host/RefPreview";
 import { loadVirtualState, saveVirtualState } from "./host/virtualState";
 import {
   confirmDialog,
@@ -641,6 +642,7 @@ export default function App() {
       <ToastHost />
       <ConfirmHost onNeverAsk={() => updateSettings({ confirmDelete: false })} />
       {capture && <QuickCapture kind={capture} onClose={() => setCapture(null)} notify={notify} />}
+      <RefPreviewHost enabled={settings.refPreview !== false} />
       <Palette
         books={books}
         actions={paletteActions}

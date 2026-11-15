@@ -8798,3 +8798,16 @@ body.task-dragging * {
 .lib-actions .module-tab { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--text); font: inherit; font-size: 13.5px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
 .lib-actions .module-tab:hover { background: var(--soft); border-color: var(--ui-accent); }
 .lib-actions .module-tab.on { background: var(--ui-accent); border-color: var(--ui-accent); color: #fff; }
+
+/* a reference in a note ("约 3:16") and the card that shows its words */
+.ref-link { border-bottom: 1px dotted var(--ui-accent); cursor: pointer; }
+.ref-link:hover { color: var(--ui-accent); }
+.ref-pop { position: fixed; z-index: 90; width: 380px; max-width: calc(100vw - 24px); padding: 11px 14px 9px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); box-shadow: 0 12px 32px rgb(0 0 0 / 0.2); font-size: 14px; line-height: 1.7; }
+.ref-pop-t { font-size: 12px; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; }
+.ref-pop-b { font-family: var(--read-font); max-height: 240px; overflow: auto; }
+.ref-pop-b p { margin: 0 0 6px; text-indent: 0; }
+.ref-pop-b sup { font-size: 0.65em; color: var(--muted); margin-right: 2px; }
+.ref-pop-b .alt { color: var(--muted); font-size: 0.92em; }
+.ref-pop-b .alt b { font-size: 0.8em; letter-spacing: 0.04em; color: var(--ui-accent); margin-right: 6px; }
+.ref-pop-a { display: flex; gap: 14px; margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--line); }
+.ref-pop-a button { border: 0; background: none; padding: 0; font-size: 12.5px; color: var(--ui-accent); cursor: pointer; }

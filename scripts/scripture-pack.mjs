@@ -13,7 +13,9 @@ export const PACK_FORMAT = "marginalia-scripture-1";
 /** The JSON of a pack: books -> [chapter, verse, verseEnd, text] rows; verse 0 is a heading some psalms carry. */
 export function makePack(meta, books) {
   const out = {};
-  for (const b of BOOKS) out[b] = books.get(b).map((v) => [v.chapter, v.verse, v.verseEnd, v.text]);
+  // a fifth number, only where there is one: how the verse starts (1 paragraph, 2 block of poetry, 3 line of poetry);
+  // a sixth, the parallel passages printed above the paragraph that starts here
+  for (const b of BOOKS) out[b] = books.get(b).map((v) => (v.xref ? [v.chapter, v.verse, v.verseEnd, v.text, v.par || 0, v.xref] : v.par ? [v.chapter, v.verse, v.verseEnd, v.text, v.par] : [v.chapter, v.verse, v.verseEnd, v.text]));
   return { format: PACK_FORMAT, ...meta, books: out };
 }
 

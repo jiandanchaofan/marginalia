@@ -3,6 +3,7 @@ import { bookInfo } from "./books";
 import { NAME_INDEX, norm } from "./names";
 import { currentVersion, docIdOf } from "./ids";
 import { BUNDLED, loadPack } from "./packs";
+import { getCompare } from "./compare";
 
 export interface ParsedRef {
   book: string;
@@ -74,6 +75,19 @@ export function lookup(query: string): RefTarget[] {
   return [...books].slice(0, 6).map((book) => targetOf({ book }));
 }
 
+/**
+ * Inside running text only the clear forms count, so "约3.16元" or "it is 3:16 now" are left alone: a one-character Chinese
+ * name needs a colon or 章 ("约3:16", "约3章16节"), and an English name needs three letters or more.
+ */
+function plausible(candidate: string): boolean {
+  const s = norm(candidate);
+  const hit = NAME_INDEX.find((n) => s.startsWith(n.name) && !/^[a-z]/.test(s.slice(n.name.length)));
+  if (!hit) return false;
+  if (/^[a-z0-9]+$/.test(hit.name)) return hit.name.replace(/\d/g, "").length >= 3;
+  if (hit.name.length === 1) return /[:章]/.test(s.slice(1));
+  return true;
+}
+
 /** References inside a piece of text, as "约 3:16" or "Rom 8:28-30". */
 export function find(text: string): RefMatch[] {
   const out: RefMatch[] = [];
@@ -84,9 +98,12 @@ export function find(text: string): RefMatch[] {
     for (let cut = 0; cut < m[1].length; cut++) {
       const candidate = body.slice(cut);
       const p = parseRef(candidate);
-      if (p && p.chapter !== undefined && p.verse !== undefined) {
-        const start = (m.index ?? 0) + cut;
-        out.push({ start, end: start + candidate.length, ref: refString(p), label: candidate.trim() });
+      if (p && p.chapter !== undefined && p.verse !== undefined && plausible(candidate)) {
+        // the match as written, without the spaces the pattern may have taken along at either end
+        const lead = candidate.length - candidate.trimStart().length;
+        const label = candidate.trim();
+        const start = (m.index ?? 0) + cut + lead;
+        out.push({ start, end: start + label.length, ref: refString(p), label });
         break;
       }
     }
@@ -99,13 +116,27 @@ export async function preview(ref: string): Promise<{ title: string; html: strin
   const [book, c, v] = ref.split(".");
   const info = bookInfo(book);
   if (!info || !c) return null;
-  const pack = await loadPack(currentVersion(BUNDLED.map((b) => b.id)));
+  const ids = BUNDLED.map((b) => b.id);
+  const main = currentVersion(ids);
+  const pack = await loadPack(main);
   const [from, to] = (v ?? "").split("-").map(Number);
-  const rows = (pack.books[book] ?? []).filter((r) => r[0] === +c && r[1] > 0 && (!from || (r[1] >= from && r[1] <= (to || from))));
+  const pick = (rows: [number, number, number, string][]) => rows.filter((r) => r[0] === +c && r[1] > 0 && (!from || (r[1] >= from && r[1] <= (to || from))));
+  const rows = pick(pack.books[book] ?? []);
   if (!rows.length) return null;
   const zh = pack.lang.startsWith("zh");
   const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  return { title: `${zh ? info.zh : info.en} ${c}${v ? ":" + v : ""} · ${pack.name}`, html: rows.map((r) => `<p><sup>${r[1]}</sup> ${esc(r[3])}</p>`).join("") };
+  const verses = (rs: typeof rows) => rs.map((r) => `<sup>${r[1]}</sup> ${esc(r[3])}`).join(" ");
+  let html = `<p>${verses(rows)}</p>`;
+  // the other translations being compared, one line each
+  const cmp = getCompare(main);
+  if (cmp.mode !== "off") {
+    for (const id of cmp.versions) {
+      const other = BUNDLED.find((b) => b.id === id);
+      const rs = pick((await loadPack(id)).books[book] ?? []);
+      if (other && rs.length) html += `<p class="alt"><b>${esc(other.short)}</b> ${verses(rs)}</p>`;
+    }
+  }
+  return { title: `${zh ? info.zh : info.en} ${c}${v ? ":" + v : ""} · ${pack.name}`, html };
 }
 
 export const recognizer: RefRecognizer = { id: "bible", find, lookup, preview };

@@ -14,7 +14,7 @@ import { reviewStore } from "../review/store";
 import { syncIndex, useIndexState } from "../search/indexer";
 import { KeysPane } from "../palette/KeysPane";
 import { SyncPane } from "../sync/SyncPane";
-import { failureOf, knownModules, useRegistry } from "../host/registry";
+import { failureOf, knownModules, recognizers, useRegistry } from "../host/registry";
 import { SYNC_VISIBLE } from "../sync/visible";
 import { DEFAULT_WEEK_TAG } from "../settings";
 import { normalizeTag } from "../notes/tags";
@@ -430,6 +430,11 @@ function ModulesPane({ s, onChange }: { s: Settings; onChange(p: Partial<Setting
       <div className="panel-title">{t("mod.title")}</div>
       <div className="settings-body">
         <p className="settings-hint">{t("mod.hint")}</p>
+        {recognizers().length > 0 && (
+          <label className="check">
+            <input type="checkbox" checked={s.refPreview !== false} onChange={(e) => onChange({ refPreview: e.target.checked })} /> {t("mod.refPreview")}
+          </label>
+        )}
         {list.map((m) => (
           <div key={m.id}>
             <label className="check">

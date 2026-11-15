@@ -1,4 +1,6 @@
 import { Fragment } from "react";
+import { findRefs } from "../host/registry";
+import { openRef } from "../host/RefPreview";
 import { segments } from "../notes/tags";
 import { parseBlocks, parseInline, type Inline, type TodoItem } from "../notes/format";
 import { splitTodoTokens } from "../tasks/parse";
@@ -32,6 +34,26 @@ interface Ctx {
   onTag?(tag: string): void;
 }
 
+/** Text with the references of modules ("约 3:16") marked: a dotted underline, and a click opens the place. */
+function WithRefs({ text, terms }: { text: string; terms?: string[] }) {
+  const found = findRefs(text);
+  if (!found.length) return <Marked text={text} terms={terms} />;
+  const parts: React.ReactNode[] = [];
+  let at = 0;
+  found.forEach((m, i) => {
+    if (m.start < at) return;
+    if (m.start > at) parts.push(<Marked key={`t${i}`} text={text.slice(at, m.start)} terms={terms} />);
+    parts.push(
+      <span key={`r${i}`} className="ref-link" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => (e.stopPropagation(), openRef(m.label))}>
+        {text.slice(m.start, m.end)}
+      </span>,
+    );
+    at = m.end;
+  });
+  if (at < text.length) parts.push(<Marked key="tail" text={text.slice(at)} terms={terms} />);
+  return <>{parts}</>;
+}
+
 /** Plain text leaf: `#tags` become clickable chips, search terms are highlighted. */
 function Leaf({ text, ctx }: { text: string; ctx: Ctx }) {
   return (
@@ -51,7 +73,7 @@ function Leaf({ text, ctx }: { text: string; ctx: Ctx }) {
             #{s.tag}
           </button>
         ) : (
-          <Marked key={i} text={s.value} terms={ctx.terms} />
+          <WithRefs key={i} text={s.value} terms={ctx.terms} />
         ),
       )}
     </>

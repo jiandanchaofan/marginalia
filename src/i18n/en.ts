@@ -1461,6 +1461,7 @@ export const en: Record<Key, string> & Record<string, string> = {
   "mod.failed": "Could not start: {err}",
   "pal.refs": "Scripture",
   "note.fromDoc": "From {name}",
+  "mod.refPreview": "Show the verse when the mouse rests on a reference such as “John 3:16”",
   "tp.back": "Back to the notes list",
   "tp.stat": "{notes} notes · {books} books · {tasks} to-dos ({done} done)",
   "tp.withKids": "Include sub-tags",

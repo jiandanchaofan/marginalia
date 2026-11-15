@@ -1442,6 +1442,7 @@ export const zhHant: Record<Key, string> & Record<string, string> = {
   "mod.failed": "沒能啟動：{err}",
   "pal.refs": "經文",
   "note.fromDoc": "來自 {name}",
+  "mod.refPreview": "滑鼠停在「約 3:16」這樣的經文引用上時，顯示經文",
   "tp.back": "回到筆記列表",
   "tp.stat": "{notes} 則筆記 · {books} 本書 · {tasks} 個待辦（{done} 已完成）",
   "tp.withKids": "包含子標籤",

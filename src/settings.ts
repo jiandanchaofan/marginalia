@@ -31,6 +31,8 @@ export interface Settings {
   bookSearch?: boolean;
   /** Ask before moving a note or to-do to the recycle bin (default on). */
   confirmDelete?: boolean;
+  /** Show the words of a Bible reference when the mouse rests on it (default on; only when a module that knows references is on). */
+  refPreview?: boolean;
   /** Version of the reading typography defaults the stored settings were last brought to (see normalizeSettings). */
   typo?: number;
   /** Ids of the built-in modules that are switched on (none by default). */
