@@ -29,13 +29,33 @@ export interface SectionContent {
   ref?: string;
 }
 
-/** A document that has no file: the module makes its contents tree and its pages on demand. */
-export interface DocProvider {
-  /** Id of the virtual document as notes record it in `book_id`, e.g. "bible:cuv". Never shown on the shelf. */
-  id: string;
+/** An entry of the contents list of one open document (a chapter, a part). */
+export interface DocTocItem {
+  label: string;
+  /** Index of the section (page of text) it leads to, and optionally an element id inside it. */
+  section: number;
+  fragment?: string;
+  children?: DocTocItem[];
+}
+
+/** One document as the reader shows it: a title, a contents list and sections made on demand. */
+export interface VirtualDoc {
   title: string;
+  author?: string;
+  toc: DocTocItem[];
+  sectionCount: number;
+  section(index: number): Promise<SectionContent>;
+}
+
+/**
+ * Documents that have no file. Their ids start with `prefix` ("bible:cuv-hans:JHN"); notes made in them record that id
+ * as the book they belong to. They never appear on the shelf: the module offers its own way in.
+ */
+export interface DocProvider {
+  prefix: string;
+  /** What the module offers to open, as a tree (testaments, books, ...). Leaves carry the id of a document. */
   toc(): Promise<TocNode[]>;
-  section(id: string): Promise<SectionContent>;
+  open(docId: string): Promise<VirtualDoc>;
 }
 
 // ---------------------------------------------------------------- references in any text

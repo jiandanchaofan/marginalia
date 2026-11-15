@@ -101,7 +101,8 @@ export const docProviders = (): DocProvider[] => all("docs");
 export const recognizers = (): RefRecognizer[] => all("recognizers");
 export const planProviders = (): PlanProvider[] => all("plans");
 export const slotItems = (slot: SlotName): SlotItem[] => all("slots").filter((s: SlotItem) => s.slot === slot);
-export const docProvider = (id: string) => docProviders().find((d) => d.id === id);
+/** The provider that owns a document id (virtual documents have ids that start with the provider's prefix). */
+export const docProvider = (id: string) => docProviders().find((d) => id.startsWith(d.prefix));
 
 // ---- the reading position, passed on to modules at a calm pace
 

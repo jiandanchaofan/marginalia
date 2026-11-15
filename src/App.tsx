@@ -5,6 +5,7 @@ import { openBook as openBookDoc } from "./openBook";
 import { epubCover, storeCover } from "./core/cover";
 import { registerBuiltins } from "./host/builtins";
 import { moduleName, setEnabled } from "./host/registry";
+import { isVirtualDoc } from "./host/virtualDoc";
 import {
   confirmDialog,
   deleteBook,
@@ -59,6 +60,8 @@ import { rebuildTray, setupTray, showMainWindow } from "./cards/tray";
 export default function App() {
   const [books, setBooks] = useState<BookRecord[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  // a document a module provides (no file, not on the shelf): kept only while it is open
+  const [virtualBook, setVirtualBook] = useState<BookRecord | null>(null);
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
   const [focusText, setFocusText] = useState<{ section: number; text: string; snippet?: string } | null>(null);
   const [view, setView] = useState<"shelf" | "feeds" | "notes" | "tasks">("notes");
@@ -154,6 +157,7 @@ export default function App() {
   }, []);
 
   const updateBook = useCallback((id: string, p: Partial<BookRecord>) => {
+    setVirtualBook((v) => (v && v.id === id ? { ...v, ...p } : v));
     setBooks((list) => list.map((b) => (b.id === id ? { ...b, ...p } : b)));
   }, []);
 
@@ -400,7 +404,29 @@ export default function App() {
     }
   };
 
+  /** Open a document a module provides. The module (or a test) asks for it with a `reader:open-doc` event. */
+  const openVirtual = useCallback((docId: string, title: string) => {
+    const now = Date.now();
+    setVirtualBook((v) => (v && v.id === docId ? v : { id: docId, ext: "", format: "html", title, author: "", fileName: title, size: 0, addedAt: now, lastOpenedAt: now, progress: 0, annotationCount: 0 }));
+    setFocusText(null);
+    setFocusNoteId(null);
+    setOpenId(docId);
+  }, []);
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ docId: string; title?: string }>).detail;
+      if (d?.docId && isVirtualDoc(d.docId)) openVirtual(d.docId, d.title ?? d.docId);
+    };
+    window.addEventListener("reader:open-doc", on);
+    return () => window.removeEventListener("reader:open-doc", on);
+  }, [openVirtual]);
+
   const openNote = (hit: NoteHit) => {
+    if (isVirtualDoc(hit.bookId)) {
+      openVirtual(hit.bookId, moduleName(hit.note.sourceModule ?? "") || hit.bookId);
+      setFocusNoteId(hit.note.id);
+      return;
+    }
     // a note of a module written on a document that has no file here: only that module can open it
     if (!booksRef.current.some((b) => b.id === hit.bookId)) {
       notify(hit.note.sourceModule ? t("app.moduleOff", { module: moduleName(hit.note.sourceModule) }) : t("app.bookGone"));
@@ -498,7 +524,7 @@ export default function App() {
     setBooks((list) => list.filter((x) => x.id !== b.id));
   };
 
-  const openBook = books.find((b) => b.id === openId) ?? null;
+  const openBook = books.find((b) => b.id === openId) ?? (virtualBook && virtualBook.id === openId ? virtualBook : null);
 
   // Ctrl + K palette: what its commands can do to the app
   const paletteActions: Actions = {
