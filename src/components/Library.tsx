@@ -16,7 +16,8 @@ import { BookInfoDialog } from "./BookInfoDialog";
 import { BatchTagDialog } from "./BatchTagDialog";
 import { DOC_TYPES, DocTypeBadge, docType } from "./DocTypeBadge";
 import { useImage } from "../notes/images";
-import { pageItems, useRegistry } from "../host/registry";
+import { docTitle, pageItems, useRegistry } from "../host/registry";
+import { isVirtualDoc } from "../host/virtualDoc";
 import { PageHost } from "../host/SlotHost";
 import { recentDocs } from "../host/virtualState";
 import { applyPlan, onTasksChanged, planProgress, removePlan } from "../host/plans";
@@ -445,7 +446,7 @@ export function Library(props: Props) {
       ) : view === "tasks" ? (
         <Tasks books={bookMap} notify={notify} onOpenNote={onOpenNote} />
       ) : view === "notes" ? (
-        <NotesHub books={books} counts={counts} theme={theme} onOpenNote={onOpenNote} onOpenBook={(id) => { const b = books.find((x) => x.id === id); if (b) onOpen(b); }} notify={notify} />
+        <NotesHub books={books} counts={counts} theme={theme} onOpenNote={onOpenNote} onOpenBook={(id) => { const b = books.find((x) => x.id === id); if (b) onOpen(b); else if (isVirtualDoc(id)) window.dispatchEvent(new CustomEvent("reader:open-doc", { detail: { docId: id, title: docTitle(id) || id } })); }} notify={notify} />
       ) : !books.length ? (
         <div className="lib-empty" onClick={onImport}>
           <BookOpen size={40} strokeWidth={1.2} />

@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { docTitle } from "../host/registry";
+import { isVirtualDoc } from "../host/virtualDoc";
+import { loadVirtualState } from "../host/virtualState";
 import { ArrowLeft, BookOpen, Check, Circle, ListChecks, NotebookText, Target } from "lucide-react";
 import type { BookRecord } from "../core/types";
 import { notesStore, useNotesVersion, type NoteHit, type TagInfo } from "../notes/store";
@@ -112,15 +115,19 @@ export function TopicPage({ tag, books, theme, onOpenNote, onOpenBook, onPickTag
           <div className="tp-blist">
             {bookRows.map((b) => {
               const rec = books.get(b.id);
-              const pctRead = rec ? Math.round(rec.progress * 100) : 0;
+              // a document a module provides (the Bible) is not on the shelf: it has its own name and remembered position
+              const plugin = !rec && isVirtualDoc(b.id) ? docTitle(b.id) : "";
+              const progress = rec ? rec.progress : plugin ? loadVirtualState(b.id).progress ?? 0 : 0;
+              const known = !!rec || !!plugin;
+              const pctRead = Math.round(progress * 100);
               return (
-                <button key={b.id} className="tp-brow" disabled={!rec} onClick={() => onOpenBook(b.id)}>
-                  <span className="tp-btitle">{rec?.title ?? t("kind.removedBook")}</span>
+                <button key={b.id} className="tp-brow" disabled={!known} onClick={() => onOpenBook(b.id)}>
+                  <span className="tp-btitle">{rec?.title ?? (plugin || t("kind.removedBook"))}</span>
                   <span className="tp-bmeta">
-                    {rec ? `${pctRead}% · ` : ""}
+                    {known ? `${pctRead}% · ` : ""}
                     {t("unit.notes", { n: b.count })}
                   </span>
-                  {rec && (
+                  {known && (
                     <span className="tp-bbar">
                       <i style={{ width: `${pctRead}%` }} />
                     </span>

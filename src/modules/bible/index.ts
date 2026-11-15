@@ -71,6 +71,11 @@ export const bibleModule: Module = {
       joinRefs,
       refPrefix: (docId) => parseDocId(docId)?.book ?? "",
       label: (docId) => BUNDLED.find((b) => b.id === parseDocId(docId)?.version)?.short ?? "",
+      title: (docId) => {
+        const id = parseDocId(docId);
+        const info = id && bookInfo(id.book);
+        return info ? (BUNDLED.find((b) => b.id === id.version)?.lang.startsWith("zh") ?? true ? info.zh : info.en) : "";
+      },
     });
     host.registerRecognizer(recognizer);
     host.registerSlot({ id: "compare", slot: "reader.topbar", title: "对照译本", component: CompareMenu });

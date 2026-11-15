@@ -67,6 +67,8 @@ export interface DocProvider {
   refPrefix?(docId: string): string;
   /** A short name for a document, for "from WEB" on a note written in it. */
   label?(docId: string): string;
+  /** What the document is called where documents are listed ("诗篇"). */
+  title?(docId: string): string;
 }
 
 // ---------------------------------------------------------------- references in any text

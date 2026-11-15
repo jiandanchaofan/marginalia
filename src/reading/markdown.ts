@@ -1,4 +1,5 @@
 import type { BookRecord } from "../core/types";
+import { docTitle } from "../host/registry";
 import { t } from "../i18n";
 import type { ReadingDay } from "./store";
 import { dayTotals, fmtSecs } from "./stats";
@@ -22,7 +23,7 @@ export function readingToMarkdown(rows: ReadingDay[], books: Map<string, BookRec
     })
     .sort((a, b) => b.secs - a.secs);
   for (const { id, mine, secs } of perBook) {
-    const title = books.get(id)?.title ?? t("kind.removedBook");
+    const title = books.get(id)?.title ?? (docTitle(id) || t("kind.removedBook"));
     lines.push(`## ${t("kind.bookQuote", { title })}`, "");
     const days = mine.filter((r) => r.secs >= READ_DAY).length;
     lines.push(`- ${t("md.rbook", { time: fmtSecs(secs), days, a: pct(mine[0].p0), b: pct(Math.max(...mine.map((r) => r.p1))) })}`);

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { docTitle } from "../host/registry";
+import { isVirtualDoc } from "../host/virtualDoc";
 import { BookOpen, ChevronRight, FileText, Hash, Library as LibraryIcon, Network, NotebookPen, Pencil, Pin, PinOff, SlidersHorizontal, Sparkles, Star, Tags, Trash2, X } from "lucide-react";
 import { FREE_BOOK, isFreeNote, type BookRecord } from "../core/types";
 import { notesStore, useNotesVersion, type NoteHit, type TagInfo } from "../notes/store";
@@ -304,6 +306,10 @@ export function NotesHub({ books, counts, theme, onOpenNote, onOpenBook, notify 
           .filter((b) => counts[b.id])
           .sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))
           .map((b) => src({ type: "book", id: b.id }, b.title, counts[b.id] ?? 0, <DocTypeBadge type={docType(b)} inline size={15} />))}
+        {Object.keys(counts)
+          .filter((id) => !books.some((b) => b.id === id) && isVirtualDoc(id) && docTitle(id))
+          .sort((a, b) => (counts[b] ?? 0) - (counts[a] ?? 0))
+          .map((id) => src({ type: "book", id }, docTitle(id), counts[id] ?? 0, <BookOpen size={14} />))}
       </div>
     </aside>
   );
