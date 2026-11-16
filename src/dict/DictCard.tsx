@@ -30,6 +30,7 @@ export function DictHost() {
   const [tab, setTab] = useState(0);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [bar, setBar] = useState(false);
   const seq = useRef(0);
   const [size, setSize] = useState<Size>(loadSize);
   const card = useRef<HTMLElement>(null);
@@ -87,6 +88,7 @@ export function DictHost() {
       const q = String((e as CustomEvent).detail?.query ?? "").trim();
       if (!q) return;
       setOpen(true);
+      setBar(false);
       void run(q);
     };
     window.addEventListener("dict:lookup", on);
@@ -117,16 +119,10 @@ export function DictHost() {
     <aside ref={card} className="dict-card" style={{ width: size.w, ...(size.h ? { height: size.h } : {}) }} role="dialog" aria-label={t("dict.title")} data-testid="dict-card">
       <div className="dict-head">
         <BookOpen size={16} />
-        <form
-          className="dict-q"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (text.trim()) void run(text.trim());
-          }}
-        >
-          <Search size={14} />
-          <input value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} aria-label={t("dict.title")} />
-        </form>
+        <b className="dict-word">{found?.query || text}</b>
+        <button className={"icon-btn" + (bar ? " on" : "")} aria-pressed={bar} onClick={() => setBar(!bar)} title={t("dict.tools")} aria-label={t("dict.tools")}>
+          <Search size={16} />
+        </button>
         <button className="icon-btn" onClick={() => setOpen(false)} title={t("common.close")} aria-label={t("common.close")}>
           <X size={16} />
         </button>
@@ -137,7 +133,19 @@ export function DictHost() {
           <p>{t("dict.none")}</p>
         </div>
       )}
-      {!noDicts && entries.length > 1 && (
+      {bar && (
+        <form
+          className="dict-q"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (text.trim()) void run(text.trim());
+          }}
+        >
+          <Search size={14} />
+          <input autoFocus value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} aria-label={t("dict.title")} />
+        </form>
+      )}
+      {bar && !noDicts && entries.length > 1 && (
         <div className="dict-tabs" role="tablist">
           {entries.map((e, i) => (
             <button key={e.dictId} role="tab" aria-selected={i === tab} className={i === tab ? "on" : ""} onClick={() => setTab(i)} title={e.title}>

@@ -1285,6 +1285,7 @@ export const zhHant: Record<Key, string> & Record<string, string> = {
   "pal.count": "共 {n} 則",
   "pal.none": "沒有找到「{q}」",
   "dict.title": "查字典",
+  "dict.tools": "搜尋與詞典",
   "dict.none": "尚未加入辭典。請在「設定 → 一般 → 外掛」裡加入。",
   "dict.add": "加入辭典…",
   "dict.miss": "辭典裡找不到「{q}」。",

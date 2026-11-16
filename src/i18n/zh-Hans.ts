@@ -1289,6 +1289,7 @@ export const zhHans = {
   "pal.count": "共 {n} 条",
   "pal.none": "没有找到“{q}”",
   "dict.title": "查字典",
+  "dict.tools": "搜索与词典",
   "dict.none": "还没有词典。请在“设置 → 通用 → 插件”里添加。",
   "dict.add": "添加词典…",
   "dict.miss": "词典里没有找到“{q}”。",

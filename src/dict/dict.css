@@ -131,3 +131,8 @@
 .dict-row-t small { font-size: 11.5px; }
 .dict-set .btn { font-size: 13px; }
 .dict-set .settings-hint { font-size: 11.5px; margin: 0; }
+
+/* default view: just the word and the entry; search box and dictionary tabs open from the magnifier */
+.dict-word { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.dict-head .icon-btn.on { background: color-mix(in srgb, var(--ui-accent) 20%, transparent); color: var(--ui-accent); }
+.dict-q { flex: none; }

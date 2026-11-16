@@ -1304,6 +1304,7 @@ export const en: Record<Key, string> & Record<string, string> = {
   "pal.count": "{n} found",
   "pal.none": "Nothing found for “{q}”",
   "dict.title": "Dictionary",
+  "dict.tools": "Search and dictionaries",
   "dict.none": "No dictionaries yet. Add one in Settings → General → Plugins.",
   "dict.add": "Add dictionary…",
   "dict.miss": "“{q}” was not found in the dictionaries.",
