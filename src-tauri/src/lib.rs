@@ -13,6 +13,7 @@ mod feeds;
 mod filesync;
 mod images;
 mod library;
+mod mdict;
 mod notes;
 mod reading;
 mod records;
