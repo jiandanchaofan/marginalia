@@ -1284,7 +1284,7 @@ export const zhHant: Record<Key, string> & Record<string, string> = {
   "pal.count": "共 {n} 則",
   "pal.none": "沒有找到「{q}」",
   "dict.title": "查字典",
-  "dict.none": "尚未加入辭典。可以加入你自己的 MDict 辭典（.mdx 檔，同資料夾的 .mdd 發音、圖片會自動使用）。辭典檔只在本機讀取，不會上傳。",
+  "dict.none": "尚未加入辭典。請在「設定 → 一般 → 外掛」裡加入。",
   "dict.add": "加入辭典…",
   "dict.miss": "辭典裡找不到「{q}」。",
   "dict.allOff": "所有辭典都已停用。",

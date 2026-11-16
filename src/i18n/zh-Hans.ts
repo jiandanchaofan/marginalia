@@ -1288,7 +1288,7 @@ export const zhHans = {
   "pal.count": "共 {n} 条",
   "pal.none": "没有找到“{q}”",
   "dict.title": "查字典",
-  "dict.none": "还没有添加词典。可以添加你自己的 MDict 词典（.mdx 文件，同目录的 .mdd 发音、图片会自动使用）。词典文件只在本机读取，不会上传。",
+  "dict.none": "还没有词典。请在“设置 → 通用 → 插件”里添加。",
   "dict.add": "添加词典…",
   "dict.miss": "词典里没有找到“{q}”。",
   "dict.allOff": "所有词典都已停用。",

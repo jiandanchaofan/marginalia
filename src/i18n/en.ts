@@ -1303,7 +1303,7 @@ export const en: Record<Key, string> & Record<string, string> = {
   "pal.count": "{n} found",
   "pal.none": "Nothing found for “{q}”",
   "dict.title": "Dictionary",
-  "dict.none": "No dictionaries yet. Add your own MDict dictionary (.mdx; the .mdd files next to it, with sounds and pictures, are used automatically). Dictionary files are only read on this computer and never uploaded.",
+  "dict.none": "No dictionaries yet. Add one in Settings → General → Plugins.",
   "dict.add": "Add dictionary…",
   "dict.miss": "“{q}” was not found in the dictionaries.",
   "dict.allOff": "All dictionaries are switched off.",

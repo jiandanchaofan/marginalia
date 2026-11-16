@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Plus, Search, X } from "lucide-react";
+import { BookOpen, Search, X } from "lucide-react";
 import { t } from "../i18n";
-import { dictApi, dictAvailable, pickDictionary, type DictFound, type DictInfo } from "./api";
+import { dictApi, dictAvailable, type DictFound, type DictInfo } from "./api";
 import { frameDoc } from "./frame";
 import "./dict.css";
 
@@ -49,22 +49,17 @@ export function DictHost() {
 
   useEffect(() => {
     if (!open) return;
-    const k = (e: KeyboardEvent) => e.key === "Escape" && !(e.target as HTMLElement)?.closest?.("input,textarea") && setOpen(false);
+    const k = (e: KeyboardEvent) => e.key === "Escape" && (!(e.target as HTMLElement)?.closest?.("input,textarea") || !!(e.target as HTMLElement)?.closest?.(".dict-card")) && setOpen(false);
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
   }, [open]);
 
-  const add = async () => {
-    setErr("");
-    try {
-      const p = await pickDictionary();
-      if (!p) return;
-      setDicts(await dictApi.add(p));
-      if (text) void run(text);
-    } catch (e) {
-      setErr(String(e));
-    }
-  };
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => !(e.target as Element | null)?.closest?.(".dict-card") && setOpen(false);
+    document.addEventListener("mousedown", away, true);
+    return () => document.removeEventListener("mousedown", away, true);
+  }, [open]);
 
   if (!open || !dictAvailable()) return null;
   const entries = found?.entries ?? [];
@@ -94,9 +89,6 @@ export function DictHost() {
       {noDicts && (
         <div className="dict-empty">
           <p>{t("dict.none")}</p>
-          <button className="btn primary" onClick={add}>
-            <Plus size={14} /> {t("dict.add")}
-          </button>
         </div>
       )}
       {!noDicts && entries.length > 1 && (
@@ -130,13 +122,6 @@ export function DictHost() {
         </p>
       ))}
       {err && <p className="dict-err">{err}</p>}
-      {!noDicts && dicts && (
-        <div className="dict-foot">
-          <button className="link-btn" onClick={add}>
-            <Plus size={12} /> {t("dict.add")}
-          </button>
-        </div>
-      )}
     </aside>
   );
 }
