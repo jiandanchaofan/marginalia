@@ -1,6 +1,6 @@
 import type { HighlightStyle } from "../core/types";
 
-/** Tiny "文A" sample rendered in a given highlight style, used on toolbar/style chips. */
+/** Tiny "A" sample rendered in a given highlight style, used on toolbar/style chips. */
 export function StylePreview({ style, color, soft }: { style: HighlightStyle; color: string; soft: string }) {
   const css: React.CSSProperties = {};
   switch (style) {
@@ -53,7 +53,7 @@ export function StylePreview({ style, color, soft }: { style: HighlightStyle; co
   }
   return (
     <span className="style-preview" style={css}>
-      文A
+      A
     </span>
   );
 }
