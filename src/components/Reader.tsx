@@ -626,10 +626,9 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
 
   // double-clicking a word in the text opens the dictionary card
   useEffect(() => {
-    if (!dictAvailable()) return;
     const onDbl = (e: MouseEvent) => {
       const host = hostRef.current;
-      if (!host || !dictDblclick() || !host.contains(e.target as Node) || (e.target as Element).closest?.(".sel-toolbar,textarea,input,a")) return;
+      if (!host || !dictAvailable() || !dictDblclick() || !host.contains(e.target as Node) || (e.target as Element).closest?.(".sel-toolbar,textarea,input,a")) return;
       const w = window.getSelection()?.toString().trim() ?? "";
       if (looksLikeWord(w) && !/\s/.test(w)) lookupWord(w);
     };

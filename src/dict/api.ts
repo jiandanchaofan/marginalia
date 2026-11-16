@@ -40,7 +40,23 @@ interface Fake {
 const fake = (): Fake | undefined => (typeof window === "undefined" ? undefined : (window as unknown as { __fakeDict?: Fake }).__fakeDict);
 const none: DictFound = { query: "", entries: [], suggestions: [], problems: [] };
 
-export const dictAvailable = () => isTauri || !!fake();
+const ON = "reader:dict-on";
+/** The dictionary feature is a plugin: off until switched on in Settings → Plugins. */
+export const dictOn = (): boolean => {
+  try {
+    return localStorage.getItem(ON) === "1";
+  } catch {
+    return false;
+  }
+};
+export const setDictOn = (on: boolean) => {
+  try {
+    localStorage.setItem(ON, on ? "1" : "0");
+  } catch {
+    /* storage unavailable */
+  }
+};
+export const dictAvailable = () => dictOn() && (isTauri || !!fake());
 
 export const dictApi = {
   list: async (): Promise<DictInfo[]> => (isTauri ? invoke("dict_list") : (fake()?.list() ?? [])),

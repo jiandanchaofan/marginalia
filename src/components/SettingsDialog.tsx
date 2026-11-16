@@ -22,6 +22,7 @@ import { CARDS_CHANGED, resetCards, toggleCard } from "../cards/windows";
 import { CARD_KINDS, cardOn } from "../cards/state";
 import { autostartState, setAutostart } from "../cards/tray";
 import { AppLogo } from "./AppLogo";
+import { DictSettings } from "../dict/DictSettings";
 
 export type Tab = "look" | "general" | "keys" | "backup" | "about";
 
@@ -438,6 +439,7 @@ function ModulesPane({ s, onChange }: { s: Settings; onChange(p: Partial<Setting
             {on.has(m.id) && failureOf(m.id) && <p className="sy-err">{t("mod.failed", { err: failureOf(m.id)! })}</p>}
           </Fragment>
         ))}
+        <DictSettings />
         {recognizers().length > 0 && (
           <label className="check">
             <input type="checkbox" checked={s.refPreview !== false} onChange={(e) => onChange({ refPreview: e.target.checked })} /> {t("mod.refPreview")}
