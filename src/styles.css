@@ -660,6 +660,9 @@ button:disabled {
   border-radius: 6px;
   color: var(--muted);
 }
+.note-actions button.on {
+  color: var(--ui-accent);
+}
 .note-actions button:hover {
   background: var(--soft);
   color: var(--text);

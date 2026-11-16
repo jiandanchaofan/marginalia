@@ -349,6 +349,7 @@ export const zhHant: Record<Key, string> & Record<string, string> = {
   // note card / composer
   "card.placeholder": "寫下你的想法，輸入 # 新增標籤；Ctrl + Enter 儲存",
   "card.styleClear": "{name}（再點一次取消）",
+  "card.look": "顏色與樣式",
   "card.addTag": "新增標籤",
   "card.addImage": "新增圖片（也可直接貼上截圖）",
   "card.swap": "移到另一側",

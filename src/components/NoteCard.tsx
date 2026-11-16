@@ -1,6 +1,6 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { docShortLabel } from "../host/registry";
-import { ArrowLeftRight, Hash, ImagePlus, Trash2 } from "lucide-react";
+import { ArrowLeftRight, Hash, ImagePlus, Palette, Trash2 } from "lucide-react";
 import type { Annotation, HighlightStyle } from "../core/types";
 import { PALETTE, STYLES, swatch } from "../core/palette";
 import type { Theme } from "../settings";
@@ -44,6 +44,11 @@ export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSi
   const ref = useRef<HTMLDivElement>(null);
   const editor = useRef<TagTextareaHandle>(null);
   const [reflect, setReflect] = useState<string | null>(null);
+  /** Colour and style choices stay folded away until asked for. */
+  const [look, setLook] = useState(false);
+  useEffect(() => {
+    if (!active) setLook(false);
+  }, [active]);
   const sw = swatch(a.color);
   const accent = theme === "dark" ? sw.dark : sw.ink;
 
@@ -104,7 +109,7 @@ export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSi
           <FormatBar onFormat={(k) => editor.current?.format(k)} />
         </div>
       )}
-      {active && (
+      {active && look && (
         <div className="note-tools">
           <div className="note-swatches">
             {PALETTE.map((p) => (
@@ -135,6 +140,9 @@ export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSi
         <span>{fmt(a.updatedAt)}</span>
         {active && (
           <span className="note-actions">
+            <button title={t("card.look")} className={look ? "on" : ""} aria-pressed={look} onClick={() => setLook((v) => !v)}>
+              <Palette size={14} />
+            </button>
             <button title={t("card.addTag")} onClick={() => editor.current?.startTag()}>
               <Hash size={14} />
             </button>

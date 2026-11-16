@@ -356,6 +356,7 @@ export const en: Record<Key, string> & Record<string, string> = {
   // note card / composer
   "card.placeholder": "Write your thoughts; type # to add a tag; Ctrl + Enter to save",
   "card.styleClear": "{name} (click again to remove)",
+  "card.look": "Colour and style",
   "card.addTag": "Add a tag",
   "card.addImage": "Add a picture (or paste a screenshot)",
   "card.swap": "Move to the other side",

@@ -353,6 +353,7 @@ export const zhHans = {
   // note card / composer
   "card.placeholder": "写下你的想法，输入 # 添加标签；Ctrl + Enter 保存",
   "card.styleClear": "{name}（再点一次取消）",
+  "card.look": "颜色与样式",
   "card.addTag": "添加标签",
   "card.addImage": "添加图片（也可直接粘贴截图）",
   "card.swap": "移到另一侧",
