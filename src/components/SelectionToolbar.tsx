@@ -1,4 +1,4 @@
-import { Copy, ListChecks, MessageSquarePlus } from "lucide-react";
+import { BookOpen, Copy, ListChecks, MessageSquarePlus } from "lucide-react";
 import { PALETTE, STYLES } from "../core/palette";
 import type { HighlightStyle } from "../core/types";
 import type { Theme } from "../settings";
@@ -17,11 +17,13 @@ interface Props {
   onNote(): void;
   onTodo(): void;
   onCopy(): void;
+  /** Look the selected word up in a dictionary (not offered for region boxes). */
+  onDict?(): void;
   /** Region boxes have no text to copy. */
   hideCopy?: boolean;
 }
 
-export function SelectionToolbar({ x, y, below, theme, color, style, onStyle, onPick, onNote, onTodo, onCopy, hideCopy }: Props) {
+export function SelectionToolbar({ x, y, below, theme, color, style, onStyle, onPick, onNote, onTodo, onCopy, onDict, hideCopy }: Props) {
   const cur = PALETTE.find((p) => p.key === color) ?? PALETTE[0];
   return (
     <div
@@ -48,6 +50,12 @@ export function SelectionToolbar({ x, y, below, theme, color, style, onStyle, on
           <ListChecks size={16} />
           <span>{t("sel.todoLabel")}</span>
         </button>
+        {onDict && (
+          <button className="sel-action" title={t("sel.dictTip")} onClick={onDict}>
+            <BookOpen size={16} />
+            <span>{t("sel.dict")}</span>
+          </button>
+        )}
         {!hideCopy && (
           <button className="sel-action icon" title={t("sel.copy")} onClick={onCopy}>
             <Copy size={15} />

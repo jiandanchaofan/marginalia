@@ -602,7 +602,7 @@ mod tests {
     }
 
     /// A version 2.0 dictionary written the way MDict does, for the tests. Entries are (headword, record bytes).
-    fn build(entries: &[(&str, Vec<u8>)], utf16: bool, per_key_block: usize, per_record_block: usize, title: &str, kind: u8) -> Vec<u8> {
+    pub(super) fn build(entries: &[(&str, Vec<u8>)], utf16: bool, per_key_block: usize, per_record_block: usize, title: &str, kind: u8) -> Vec<u8> {
         let enc = |s: &str| -> Vec<u8> { if utf16 { s.encode_utf16().flat_map(|u| u.to_le_bytes()).collect() } else { s.as_bytes().to_vec() } };
         let unit = if utf16 { 2 } else { 1 };
         let mut sorted: Vec<(&str, &Vec<u8>)> = entries.iter().map(|(k, v)| (*k, v)).collect();
@@ -871,5 +871,19 @@ mod tests {
             }
         }
         println!("prefix 'eph': {:?}", d.prefix("eph", 8));
+    }
+}
+
+/// A tiny dictionary for the tests of the code that uses this one.
+#[cfg(test)]
+pub(crate) mod tests_support {
+    pub fn bytes() -> Vec<u8> {
+        let e: Vec<(&str, Vec<u8>)> = vec![("hello", b"<p>a greeting</p> ".to_vec())];
+        super::tests::build(&e, false, 16, 20, "Tiny test", 2)
+    }
+    pub fn tiny(dir: &std::path::Path) -> super::Mdict {
+        let p = dir.join("tiny.mdx");
+        std::fs::write(&p, bytes()).unwrap();
+        super::Mdict::open(&p).unwrap()
     }
 }

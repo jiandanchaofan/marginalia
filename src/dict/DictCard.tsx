@@ -1,0 +1,177 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BookOpen, Plus, Search, X } from "lucide-react";
+import { t } from "../i18n";
+import { dictApi, dictAvailable, pickDictionary, type DictFound, type DictInfo } from "./api";
+import { frameDoc } from "./frame";
+import "./dict.css";
+
+const nonce = () => Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+
+/** The dictionary card: one tab per dictionary that has the word, the entry in a closed frame. Opened by the `dict:lookup` event. */
+export function DictHost() {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [found, setFound] = useState<DictFound | null>(null);
+  const [dicts, setDicts] = useState<DictInfo[] | null>(null);
+  const [tab, setTab] = useState(0);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const seq = useRef(0);
+
+  const run = useCallback(async (q: string) => {
+    const my = ++seq.current;
+    setText(q);
+    setErr("");
+    setBusy(true);
+    try {
+      const [f, list] = await Promise.all([dictApi.lookup(q), dictApi.list()]);
+      if (my !== seq.current) return;
+      setFound(f);
+      setDicts(list);
+      setTab(0);
+    } catch (e) {
+      if (my === seq.current) setErr(String(e));
+    } finally {
+      if (my === seq.current) setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const on = (e: Event) => {
+      const q = String((e as CustomEvent).detail?.query ?? "").trim();
+      if (!q) return;
+      setOpen(true);
+      void run(q);
+    };
+    window.addEventListener("dict:lookup", on);
+    return () => window.removeEventListener("dict:lookup", on);
+  }, [run]);
+
+  useEffect(() => {
+    if (!open) return;
+    const k = (e: KeyboardEvent) => e.key === "Escape" && !(e.target as HTMLElement)?.closest?.("input,textarea") && setOpen(false);
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [open]);
+
+  const add = async () => {
+    setErr("");
+    try {
+      const p = await pickDictionary();
+      if (!p) return;
+      setDicts(await dictApi.add(p));
+      if (text) void run(text);
+    } catch (e) {
+      setErr(String(e));
+    }
+  };
+
+  if (!open || !dictAvailable()) return null;
+  const entries = found?.entries ?? [];
+  const cur = entries[Math.min(tab, entries.length - 1)];
+  const noDicts = dicts !== null && dicts.length === 0;
+  const enabled = (dicts ?? []).filter((d) => d.enabled);
+
+  return (
+    <aside className="dict-card" role="dialog" aria-label={t("dict.title")} data-testid="dict-card">
+      <div className="dict-head">
+        <BookOpen size={16} />
+        <form
+          className="dict-q"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (text.trim()) void run(text.trim());
+          }}
+        >
+          <Search size={14} />
+          <input value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} aria-label={t("dict.title")} />
+        </form>
+        <button className="icon-btn" onClick={() => setOpen(false)} title={t("common.close")} aria-label={t("common.close")}>
+          <X size={16} />
+        </button>
+      </div>
+
+      {noDicts && (
+        <div className="dict-empty">
+          <p>{t("dict.none")}</p>
+          <button className="btn primary" onClick={add}>
+            <Plus size={14} /> {t("dict.add")}
+          </button>
+        </div>
+      )}
+      {!noDicts && entries.length > 1 && (
+        <div className="dict-tabs" role="tablist">
+          {entries.map((e, i) => (
+            <button key={e.dictId} role="tab" aria-selected={i === tab} className={i === tab ? "on" : ""} onClick={() => setTab(i)} title={e.title}>
+              {e.title}
+            </button>
+          ))}
+        </div>
+      )}
+      {cur && <EntryFrame key={cur.dictId + cur.headword + found?.query} entry={cur} onWord={(w) => void run(w)} />}
+      {!noDicts && !cur && !busy && found && (
+        <div className="dict-empty">
+          <p>{enabled.length ? t("dict.miss", { q: found.query }) : t("dict.allOff")}</p>
+          {found.suggestions.length > 0 && (
+            <div className="dict-sugg">
+              <span>{t("dict.similar")}</span>
+              {found.suggestions.map((s) => (
+                <button key={s} onClick={() => void run(s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {found?.problems.map((p) => (
+        <p key={p} className="dict-err">
+          {p}
+        </p>
+      ))}
+      {err && <p className="dict-err">{err}</p>}
+      {!noDicts && dicts && (
+        <div className="dict-foot">
+          <button className="link-btn" onClick={add}>
+            <Plus size={12} /> {t("dict.add")}
+          </button>
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function EntryFrame({ entry, onWord }: { entry: { dictId: string; body: string; scripts: boolean }; onWord(w: string): void }) {
+  const ref = useRef<HTMLIFrameElement>(null);
+  const [h, setH] = useState(120);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const doc = useMemo(() => frameDoc(entry.body, entry.scripts, nonce()), [entry]);
+
+  useEffect(() => {
+    const on = async (e: MessageEvent) => {
+      if (e.source !== ref.current?.contentWindow) return;
+      const m = e.data as { t?: string; h?: number; w?: string; n?: string } | null;
+      if (!m || typeof m !== "object") return;
+      if (m.t === "h" && typeof m.h === "number") setH(Math.min(Math.max(m.h, 60), 6000));
+      else if (m.t === "entry" && m.w && !m.w.startsWith("@")) onWord(m.w);
+      else if (m.t === "sound" && m.n) {
+        try {
+          const r = await dictApi.resource(entry.dictId, m.n);
+          if (!r) return;
+          audio.current?.pause();
+          audio.current = new Audio(`data:${r[0]};base64,${r[1]}`);
+          await audio.current.play();
+        } catch {
+          /* no sound */
+        }
+      }
+    };
+    window.addEventListener("message", on);
+    return () => {
+      window.removeEventListener("message", on);
+      audio.current?.pause();
+    };
+  }, [entry.dictId, onWord]);
+
+  return <iframe ref={ref} className="dict-frame" title="entry" sandbox="allow-scripts" srcDoc={doc} style={{ height: h }} />;
+}

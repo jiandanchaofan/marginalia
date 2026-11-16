@@ -1,3 +1,4 @@
+import { DictHost } from "./dict/DictCard";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isFreeNote, type BookRecord } from "./core/types";
 import { formatOf } from "./core/formats";
@@ -642,6 +643,7 @@ export default function App() {
       <ToastHost />
       <ConfirmHost onNeverAsk={() => updateSettings({ confirmDelete: false })} />
       {capture && <QuickCapture kind={capture} onClose={() => setCapture(null)} notify={notify} />}
+      <DictHost />
       <RefPreviewHost enabled={settings.refPreview !== false} />
       <Palette
         books={books}

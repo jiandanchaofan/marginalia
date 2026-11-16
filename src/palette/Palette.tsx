@@ -14,10 +14,11 @@ import { allCommands, type Actions } from "./commands";
 import { bookIndex, type Found } from "../search/backend";
 import { postIntent } from "./intent";
 import { PALETTE_ID, chips, comboOf, eventCombo, ownerOf, shortcutsPaused, type Overrides } from "./shortcuts";
+import { dictAvailable, lookupWord, looksLikeWord } from "../dict/api";
 import "./palette.css";
 
 type Scope = "tag" | "book" | "cmd" | "text" | null;
-type Kind = "note" | "book" | "task" | "tag" | "cmd" | "page" | "goal" | "text" | "ref";
+type Kind = "note" | "book" | "task" | "tag" | "cmd" | "page" | "goal" | "text" | "ref" | "dict";
 interface Row {
   key: string;
   kind: Kind;
@@ -33,7 +34,7 @@ interface Group {
   rows: Row[];
 }
 
-const ICON: Record<Kind, string> = { note: "笔", book: "书", task: "✓", tag: "#", cmd: "＋", page: "页", goal: "目", text: "文", ref: "经" };
+const ICON: Record<Kind, string> = { note: "笔", book: "书", task: "✓", tag: "#", cmd: "＋", page: "页", goal: "目", text: "文", ref: "经", dict: "词" };
 const RECENT_KEY = "reader:palette-recent";
 const loadRecent = (): string[] => {
   try {
@@ -234,6 +235,9 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
       if (recentRows.length) out.push({ title: t("pal.recent"), rows: recentRows });
       out.push({ title: t("pal.common"), rows: cmds.filter((c) => c.common).map(cmdRow) });
     } else {
+      // an English word: look it up in the dictionaries
+      if (dictAvailable() && looksLikeWord(text))
+        out.push({ title: t("pal.dict"), rows: [{ key: "d:" + text.trim(), kind: "dict", title: t("pal.dictRow", { q: text.trim() }), hint: "↵", run: () => lookupWord(text.trim()) }] });
       // places in a module's texts ("约 3:16"): first, because typing one means going there
       const places = lookupRefs(text.trim());
       if (places.length)
@@ -276,7 +280,7 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
       if (cm.length) out.push({ title: t("pal.cmds"), rows: cm.map(cmdRow) });
       const tg2 = textGroup();
       if (tg2) out.push(tg2);
-      if (!out.length) {
+      if (out.every((g) => g.title === t("pal.dict"))) {
         out.push({
           title: t("pal.none", { q: text.trim() }),
           rows: [{ key: "make", kind: "cmd", title: t("pal.makeNote", { q: text.trim() }), hint: "↵", run: () => void makeNote(text.trim()) }],

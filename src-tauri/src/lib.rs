@@ -14,6 +14,7 @@ mod filesync;
 mod images;
 mod library;
 mod mdict;
+mod dict;
 mod notes;
 mod reading;
 mod records;
@@ -328,6 +329,7 @@ pub fn run() {
                 bookindex::open(&dir)
             });
             app.manage(bookindex::BookIdx(Mutex::new(idx.map_err(|e| format!("无法打开书籍全文索引: {e}"))?)));
+            app.manage(dict::DictState::default());
             backup::schedule(app.handle().clone());
             syncapp::start_scheduler(app.handle().clone());
 
@@ -396,6 +398,13 @@ pub fn run() {
             filesync::files_present,
             syncapp::sync_download_book,
             syncapp::sync_quota,
+            dict::dict_list,
+            dict::dict_add,
+            dict::dict_remove,
+            dict::dict_set_enabled,
+            dict::dict_shift,
+            dict::dict_lookup,
+            dict::dict_resource,
             syncapp::sync_status,
             syncapp::sync_connect,
             syncapp::sync_now,

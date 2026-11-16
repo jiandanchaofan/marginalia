@@ -56,3 +56,4 @@
 .pal.qc { overflow: visible; -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--card); }
 .pal-ic.text { background: #6b7a8f; }
 .pal-ic.ref { background: #8a5a44; }
+.pal-ic.dict { background: #4a6f8a; }
