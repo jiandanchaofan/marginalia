@@ -773,6 +773,15 @@ button:disabled {
   margin-top: 8px;
   gap: 2px;
 }
+/* three fixed rows (colours / styles / actions): the width is that of the styles row, so every button stays put */
+.sel-toolbar .sel-row {
+  flex-wrap: nowrap;
+}
+.sel-row.acts {
+  gap: 4px;
+  padding-top: 7px;
+  border-top: 1px solid rgb(255 255 255 / 0.1);
+}
 .sel-toolbar .style-chip {
   color: var(--toolbar-text);
 }

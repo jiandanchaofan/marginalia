@@ -1214,15 +1214,13 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
     setPanel("notes");
   };
 
-  // Coming from the notes hub with a whole-document note: open the 整体笔记 panel.
+  // Coming from the notes hub or a desktop card with a whole-document note: it has no place in the text, so just open the
+  // book (no panel pops up); the notes are one click away on the toolbar.
   useEffect(() => {
     const id = pendingFocus.current;
     if (!id || loading) return;
     const a = annotations.find((x) => x.id === id);
-    if (a && isDocNote(a)) {
-      pendingFocus.current = null;
-      setPanel("doc");
-    }
+    if (a && isDocNote(a)) pendingFocus.current = null;
   }, [annotations, loading]);
 
   // Coming from the notes hub: once the note is laid out, bring it into view and open it.

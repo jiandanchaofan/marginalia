@@ -41,7 +41,18 @@ export function SelectionToolbar({ x, y, below, theme, color, style, onStyle, on
             onClick={() => onPick(p.key)}
           />
         ))}
-        <span className="sel-sep" />
+      </div>
+      <div className="sel-row styles">
+        {STYLES.map((s, i) => (
+          <span key={s.key} className="style-slot">
+            {i > 0 && STYLES[i - 1].group !== s.group && <span className="sel-sep thin" />}
+            <button title={s.key === style ? t("sel.styleClear", { name: s.name }) : t("sel.tip", { name: s.name })} className={`style-chip ${s.key === style ? "on" : ""}`} onClick={() => onStyle(s.key)}>
+              <StylePreview style={s.key} color={theme === "dark" ? cur.dark : cur.ink} soft={theme === "dark" ? `${cur.dark}55` : cur.light} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="sel-row acts">
         <button className="sel-action" title={t("sel.note")} onClick={onNote}>
           <MessageSquarePlus size={16} />
           <span>{t("sel.noteLabel")}</span>
@@ -61,16 +72,6 @@ export function SelectionToolbar({ x, y, below, theme, color, style, onStyle, on
             <Copy size={15} />
           </button>
         )}
-      </div>
-      <div className="sel-row styles">
-        {STYLES.map((s, i) => (
-          <span key={s.key} className="style-slot">
-            {i > 0 && STYLES[i - 1].group !== s.group && <span className="sel-sep thin" />}
-            <button title={s.key === style ? t("sel.styleClear", { name: s.name }) : t("sel.tip", { name: s.name })} className={`style-chip ${s.key === style ? "on" : ""}`} onClick={() => onStyle(s.key)}>
-              <StylePreview style={s.key} color={theme === "dark" ? cur.dark : cur.ink} soft={theme === "dark" ? `${cur.dark}55` : cur.light} />
-            </button>
-          </span>
-        ))}
       </div>
     </div>
   );
