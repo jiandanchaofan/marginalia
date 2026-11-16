@@ -99,7 +99,10 @@ pub struct Mdict {
     keys: Vec<KeyBlock>,
     records: Vec<RecordBlock>,
     total: u64,
+    /// The key blocks are in order under one of the comparisons we know (`order`), so a block can be found by its first / last headword.
     sorted: bool,
+    /// 0: lower case without punctuation and spaces, 1: lower case, 2: as written.
+    order: u8,
     file: Mutex<File>,
     cache: Mutex<HashMap<usize, Entries>>,
     /// Built only for a dictionary whose key blocks are not in the order we search by.
@@ -299,11 +302,30 @@ impl Mdict {
             rat += comp;
             start += decomp;
         }
-        let mut d = Mdict { path: path.to_path_buf(), header, entries, wide, keys, records, total: start, sorted: true, file: Mutex::new(file), cache: Mutex::new(HashMap::new()), full: Mutex::new(None) };
-        // can the blocks be searched by the first / last headword? (only if they are in order under our comparison)
-        let norm: Vec<(String, String)> = d.keys.iter().map(|k| (d.norm(&k.first), d.norm(&k.last))).collect();
-        d.sorted = norm.windows(2).all(|w| w[0].1 <= w[1].0 || w[0].1 <= w[1].1) && norm.iter().all(|(a, b)| a <= b);
+        let mut d = Mdict { path: path.to_path_buf(), header, entries, wide, keys, records, total: start, sorted: true, order: 0, file: Mutex::new(file), cache: Mutex::new(HashMap::new()), full: Mutex::new(None) };
+        // can the blocks be searched by their first / last headword? Only if they are in order under some comparison; the
+        // dictionaries disagree about what that is, so try the likely ones. If none fits, the whole key list is read once.
+        let mut found = None;
+        for order in 0..3u8 {
+            d.order = order;
+            let ks: Vec<(String, String)> = d.keys.iter().map(|k| (d.skey(&k.first), d.skey(&k.last))).collect();
+            if ks.iter().all(|(a, b)| a <= b) && ks.windows(2).all(|w| w[0].1 <= w[1].0) {
+                found = Some(order);
+                break;
+            }
+        }
+        d.sorted = found.is_some();
+        d.order = found.unwrap_or(0);
         Ok(d)
+    }
+
+    /// The form of a headword the key blocks are ordered by.
+    fn skey(&self, s: &str) -> String {
+        match self.order {
+            0 => self.norm(s),
+            1 => s.to_lowercase(),
+            _ => s.to_string(),
+        }
     }
 
     /// The form of a headword that is compared (case and, usually, punctuation and spaces do not matter).
@@ -367,10 +389,12 @@ impl Mdict {
     }
 
     /// Blocks that may hold a headword whose normal form is `q`.
-    fn candidates(&self, q: &str) -> Vec<usize> {
+    fn candidates(&self, word: &str) -> Vec<usize> {
+        let q = self.skey(word);
+        let q = q.as_str();
         let mut out = Vec::new();
         for (i, k) in self.keys.iter().enumerate() {
-            let (a, b) = (self.norm(&k.first), self.norm(&k.last));
+            let (a, b) = (self.skey(&k.first), self.skey(&k.last));
             if a.as_str() <= q && q <= b.as_str() {
                 out.push(i);
             } else if a.as_str() > q {
@@ -423,7 +447,7 @@ impl Mdict {
         }
         let mut hits: Vec<Hit> = Vec::new();
         if self.sorted {
-            for i in self.candidates(&q) {
+            for i in self.candidates(word) {
                 let es = self.block(i)?;
                 for (j, (off, k)) in es.iter().enumerate() {
                     if self.norm(k) == q {
@@ -505,15 +529,30 @@ impl Mdict {
         }
     }
 
+    /// The first few headwords in file order (what is inside, for a glance).
+    pub fn sample(&self, n: usize) -> Result<Vec<String>, String> {
+        let mut out = Vec::new();
+        for i in 0..self.keys.len().min(3) {
+            for (_, w) in self.block(i)?.iter() {
+                out.push(w.clone());
+                if out.len() >= n {
+                    return Ok(out);
+                }
+            }
+        }
+        Ok(out)
+    }
+
     /// Headwords that start with `prefix`, in the dictionary's order.
     pub fn prefix(&self, prefix: &str, limit: usize) -> Result<Vec<String>, String> {
         let q = self.norm(prefix);
         if q.is_empty() {
             return Ok(vec![]);
         }
+        let sq = self.skey(prefix);
         let mut out: Vec<String> = Vec::new();
         for (i, k) in self.keys.iter().enumerate() {
-            if self.sorted && self.norm(&k.last).as_str() < q.as_str() {
+            if self.sorted && self.skey(&k.last).as_str() < sq.as_str() {
                 continue;
             }
             for (_, w) in self.block(i)?.iter() {
@@ -524,7 +563,7 @@ impl Mdict {
                     }
                 }
             }
-            if self.sorted && !out.is_empty() && self.norm(&k.last).as_str() > q.as_str() && !self.norm(&k.last).starts_with(&q) {
+            if self.sorted && !out.is_empty() && self.skey(&k.last).as_str() > sq.as_str() && !self.norm(&k.last).starts_with(&q) {
                 break;
             }
         }
@@ -774,6 +813,42 @@ mod tests {
         }
     }
 
+    /// What an entry points to and whether the .mdd files have it: `MDX_FILE` and `MDD_DIR` (a folder of .mdd files).
+    #[test]
+    #[ignore]
+    fn real_resources() {
+        let (Ok(mdx), Ok(dir)) = (std::env::var("MDX_FILE"), std::env::var("MDD_DIR")) else { return };
+        let d = Mdict::open(Path::new(&mdx)).unwrap();
+        let mdds: Vec<Mdict> = std::fs::read_dir(&dir).unwrap().flatten().filter(|e| e.path().extension().map(|x| x.eq_ignore_ascii_case("mdd")).unwrap_or(false)).map(|e| Mdict::open(&e.path()).unwrap()).collect();
+        println!("{} .mdd files", mdds.len());
+        let (_, html) = d.lookup("hello").unwrap().unwrap();
+        let grab = |marker: &str| -> Vec<String> {
+            let mut out = Vec::new();
+            let mut rest = html.as_str();
+            while let Some(i) = rest.find(marker) {
+                let after = &rest[i + marker.len()..];
+                let end = after.find(|c: char| c == '"' || c == '\'' || c == '>' || c == ' ').unwrap_or(after.len());
+                out.push(after[..end].to_string());
+                rest = &after[end..];
+            }
+            out
+        };
+        println!("sound:// {:?}", grab("sound://").into_iter().take(4).collect::<Vec<_>>());
+        println!("src= {:?}", grab("src=\"").into_iter().take(6).collect::<Vec<_>>());
+        println!("href= {:?}", grab("href=\"").into_iter().take(8).collect::<Vec<_>>());
+        let find = |name: &str| -> String {
+            for m in &mdds {
+                if let Ok(Some(b)) = m.resource(name) {
+                    return format!("{} bytes in {:?}", b.len(), m.header.title);
+                }
+            }
+            "not in any .mdd".into()
+        };
+        for n in ["oald10.css", "oald10.js", "\\oald10.css", "\\oald10.js", "uk_pron.png", "hello__gb_1.mp3", "hello__us_1.mp3", "\\hello__gb_1.mp3", "am/antelope.png"] {
+            println!("resource {n:?}: {}", find(n));
+        }
+    }
+
     /// With a real dictionary: `MDX_FILE=path cargo test --release real_dictionary -- --ignored --nocapture`.
     #[test]
     #[ignore]
@@ -782,6 +857,11 @@ mod tests {
         let t = std::time::Instant::now();
         let d = Mdict::open(Path::new(&path)).unwrap();
         println!("opened in {:?}: {:?} v{} {:?} entries={} keyblocks={} recordblocks={} sorted={} strip={} case={}", t.elapsed(), d.header.title, d.header.engine, d.header.encoding, d.entries, d.keys.len(), d.records.len(), d.sorted, d.header.strip_key, d.header.case_sensitive);
+        if d.header.is_mdd {
+            println!("sample of the files: {:?}", d.sample(8));
+            return;
+        }
+        println!("style sheet attribute: {:?}", d.header.style_sheet.chars().take(80).collect::<String>());
         for w in ["hello", "the", "run", "ran", "ephemeral", "apple", "Apple", "set", "你好", "zzzzqq"] {
             let t = std::time::Instant::now();
             match d.lookup(w) {
