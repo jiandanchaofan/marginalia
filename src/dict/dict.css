@@ -11,7 +11,7 @@
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  overflow-y: auto;
+  overflow: hidden;
   background: var(--card);
   color: var(--text);
   border: 1px solid var(--line);
@@ -66,8 +66,13 @@
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
-  flex: none;
+  flex: 1 1 auto;
+  min-height: 0;
 }
+.dict-head,
+.dict-tabs,
+.dict-foot { flex: none; }
+.dict-empty { overflow-y: auto; min-height: 0; }
 .dict-empty {
   padding: 14px 6px;
   display: flex;

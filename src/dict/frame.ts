@@ -30,6 +30,6 @@ export function frameDoc(body: string, scripts: boolean, nonce: string): string 
   window.addEventListener("load",report);report();
 })();`;
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}">
-<style>html,body{margin:0;background:#fff;color:#1c1b1a}body{padding:10px 14px 14px;font:13px/1.5 system-ui,"Segoe UI","Microsoft YaHei",sans-serif;overflow-wrap:anywhere;zoom:.9}img{max-width:100%}a{cursor:pointer}</style>
+<style>html{height:100%}html,body{margin:0;background:#fff;color:#1c1b1a}body{padding:10px 14px 14px;font:13px/1.5 system-ui,"Segoe UI","Microsoft YaHei",sans-serif;overflow-wrap:anywhere;zoom:.9}img{max-width:100%}a{cursor:pointer}</style>
 </head><body>${body}<script nonce="${nonce}">${bridge}</script></body></html>`;
 }

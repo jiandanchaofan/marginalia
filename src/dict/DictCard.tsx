@@ -143,7 +143,6 @@ export function DictHost() {
 
 function EntryFrame({ entry, onWord }: { entry: { dictId: string; body: string; scripts: boolean }; onWord(w: string): void }) {
   const ref = useRef<HTMLIFrameElement>(null);
-  const [h, setH] = useState(120);
   const audio = useRef<HTMLAudioElement | null>(null);
   const doc = useMemo(() => frameDoc(entry.body, entry.scripts, nonce()), [entry]);
 
@@ -152,8 +151,7 @@ function EntryFrame({ entry, onWord }: { entry: { dictId: string; body: string; 
       if (e.source !== ref.current?.contentWindow) return;
       const m = e.data as { t?: string; h?: number; w?: string; n?: string } | null;
       if (!m || typeof m !== "object") return;
-      if (m.t === "h" && typeof m.h === "number") setH(Math.min(Math.max(m.h, 60), 6000));
-      else if (m.t === "entry" && m.w && !m.w.startsWith("@")) onWord(m.w);
+      if (m.t === "entry" && m.w && !m.w.startsWith("@")) onWord(m.w);
       else if (m.t === "sound" && m.n) {
         try {
           const r = await dictApi.resource(entry.dictId, m.n);
@@ -173,5 +171,5 @@ function EntryFrame({ entry, onWord }: { entry: { dictId: string; body: string; 
     };
   }, [entry.dictId, onWord]);
 
-  return <iframe ref={ref} className="dict-frame" title="entry" sandbox="allow-scripts" srcDoc={doc} style={{ height: h }} />;
+  return <iframe ref={ref} className="dict-frame" title="entry" sandbox="allow-scripts" srcDoc={doc} />;
 }
