@@ -1298,7 +1298,6 @@ export const zhHans = {
   "pal.dict": "词典",
   "pal.dictRow": "查词：{q}",
   "mod.dict": "查字典（词典）",
-  "dict.set.dbl": "双击单词时自动查词",
   "dict.set.up": "上移",
   "dict.set.down": "下移",
   "dict.set.remove": "移除（不删除文件）",

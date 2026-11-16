@@ -1294,7 +1294,6 @@ export const zhHant: Record<Key, string> & Record<string, string> = {
   "pal.dict": "辭典",
   "pal.dictRow": "查詞：{q}",
   "mod.dict": "查字典（辭典）",
-  "dict.set.dbl": "按兩下單字時自動查詞",
   "dict.set.up": "上移",
   "dict.set.down": "下移",
   "dict.set.remove": "移除（不刪除檔案）",

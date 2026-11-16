@@ -31,7 +31,7 @@ import { DocNotes, ReadingMeta } from "./DocNotes";
 import { ReadingStats } from "../reading/ReadingStats";
 import { useReadingTracker } from "../reading/tracker";
 import { SelectionToolbar } from "./SelectionToolbar";
-import { dictAvailable, dictDblclick, lookupWord, looksLikeWord } from "../dict/api";
+import { dictAvailable, lookupWord } from "../dict/api";
 import { SettingsPanel, TocPanel } from "./Panels";
 import { t } from "../i18n";
 import { fmtDateTime } from "../i18n";
@@ -622,18 +622,6 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
       y: below ? last.y + last.h + 10 : first.y - 10,
       below,
     });
-  }, []);
-
-  // double-clicking a word in the text opens the dictionary card
-  useEffect(() => {
-    const onDbl = (e: MouseEvent) => {
-      const host = hostRef.current;
-      if (!host || !dictAvailable() || !dictDblclick() || !host.contains(e.target as Node) || (e.target as Element).closest?.(".sel-toolbar,textarea,input,a")) return;
-      const w = window.getSelection()?.toString().trim() ?? "";
-      if (looksLikeWord(w) && !/\s/.test(w)) lookupWord(w);
-    };
-    document.addEventListener("dblclick", onDbl);
-    return () => document.removeEventListener("dblclick", onDbl);
   }, []);
 
   useEffect(() => {

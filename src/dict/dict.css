@@ -2,7 +2,9 @@
   position: fixed;
   right: 18px;
   top: 64px;
-  bottom: 18px;
+  height: calc((100vh - 82px) * 0.6);
+  max-height: calc(100vh - 82px);
+  font-size: 13px;
   width: min(480px, calc(100vw - 36px));
   z-index: 60;
   display: flex;
@@ -50,7 +52,7 @@
   border-radius: 999px;
   background: transparent;
   color: inherit;
-  font-size: 12.5px;
+  font-size: 12px;
   white-space: nowrap;
   cursor: pointer;
 }

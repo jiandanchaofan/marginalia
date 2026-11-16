@@ -77,23 +77,6 @@ export async function pickDictionary(): Promise<string | null> {
   return typeof res === "string" ? res : null;
 }
 
-const DBL = "reader:dict-dblclick";
-/** Double-clicking a word opens the card (on unless switched off). */
-export const dictDblclick = (): boolean => {
-  try {
-    return localStorage.getItem(DBL) !== "0";
-  } catch {
-    return true;
-  }
-};
-export const setDictDblclick = (on: boolean) => {
-  try {
-    localStorage.setItem(DBL, on ? "1" : "0");
-  } catch {
-    /* storage unavailable */
-  }
-};
-
 /** Ask the card to look a word up. */
 export const lookupWord = (query: string) => window.dispatchEvent(new CustomEvent("dict:lookup", { detail: { query } }));
 

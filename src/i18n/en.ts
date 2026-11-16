@@ -1313,7 +1313,6 @@ export const en: Record<Key, string> & Record<string, string> = {
   "pal.dict": "Dictionary",
   "pal.dictRow": "Look up: {q}",
   "mod.dict": "Dictionary lookup",
-  "dict.set.dbl": "Look up a word when double-clicked",
   "dict.set.up": "Move up",
   "dict.set.down": "Move down",
   "dict.set.remove": "Remove (keeps the file)",

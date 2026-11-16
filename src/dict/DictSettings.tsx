@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
 import { t } from "../i18n";
-import { dictApi, dictDblclick, dictOn, pickDictionary, setDictDblclick, setDictOn, type DictInfo } from "./api";
+import { dictApi, dictOn, pickDictionary, setDictOn, type DictInfo } from "./api";
 
 /** The dictionary plugin in Settings → Plugins: off by default; when on, load / order / switch off dictionaries. */
 export function DictSettings() {
   const [on, setOn] = useState(dictOn());
-  const [dbl, setDbl] = useState(dictDblclick());
   const [list, setList] = useState<DictInfo[]>([]);
   const [err, setErr] = useState("");
   useEffect(() => {
@@ -39,17 +38,6 @@ export function DictSettings() {
       </label>
       {on && (
         <div className="dict-set">
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={dbl}
-              onChange={(e) => {
-                setDictDblclick(e.target.checked);
-                setDbl(e.target.checked);
-              }}
-            />{" "}
-            {t("dict.set.dbl")}
-          </label>
           {list.length === 0 && <p className="settings-hint">{t("dict.set.empty")}</p>}
           {list.map((d, i) => (
             <div key={d.id} className="dict-row">
