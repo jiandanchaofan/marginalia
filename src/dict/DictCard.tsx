@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Search, X } from "lucide-react";
+import { BookOpen, Library, Search, X } from "lucide-react";
 import { t } from "../i18n";
 import { dictApi, dictAvailable, type DictFound, type DictInfo } from "./api";
 import { frameDoc } from "./frame";
@@ -31,6 +31,7 @@ export function DictHost() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [bar, setBar] = useState(false);
+  const [pick, setPick] = useState(false);
   const seq = useRef(0);
   const [size, setSize] = useState<Size>(loadSize);
   const card = useRef<HTMLElement>(null);
@@ -89,6 +90,7 @@ export function DictHost() {
       if (!q) return;
       setOpen(true);
       setBar(false);
+      setPick(false);
       void run(q);
     };
     window.addEventListener("dict:lookup", on);
@@ -120,8 +122,11 @@ export function DictHost() {
       <div className="dict-head">
         <BookOpen size={16} />
         <b className="dict-word">{found?.query || text}</b>
-        <button className={"icon-btn" + (bar ? " on" : "")} aria-pressed={bar} onClick={() => setBar(!bar)} title={t("dict.tools")} aria-label={t("dict.tools")}>
+        <button className={"icon-btn" + (bar ? " on" : "")} aria-pressed={bar} onClick={() => setBar(!bar)} title={t("dict.search")} aria-label={t("dict.search")}>
           <Search size={16} />
+        </button>
+        <button className={"icon-btn" + (pick ? " on" : "")} data-pick aria-pressed={pick} onClick={() => setPick(!pick)} title={t("dict.pick")} aria-label={t("dict.pick")}>
+          <Library size={16} />
         </button>
         <button className="icon-btn" onClick={() => setOpen(false)} title={t("common.close")} aria-label={t("common.close")}>
           <X size={16} />
@@ -145,7 +150,7 @@ export function DictHost() {
           <input autoFocus value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} aria-label={t("dict.title")} />
         </form>
       )}
-      {bar && !noDicts && entries.length > 1 && (
+      {pick && !noDicts && entries.length > 1 && (
         <div className="dict-tabs" role="tablist">
           {entries.map((e, i) => (
             <button key={e.dictId} role="tab" aria-selected={i === tab} className={i === tab ? "on" : ""} onClick={() => setTab(i)} title={e.title}>
