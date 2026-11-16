@@ -5,6 +5,20 @@ import { dictApi, dictAvailable, type DictFound, type DictInfo } from "./api";
 import { frameDoc } from "./frame";
 import "./dict.css";
 
+const SIZE = "reader:dict-size";
+const DEFAULT_W = 360;
+type Size = { w: number; h: number | null };
+const loadSize = (): Size => {
+  try {
+    const v = JSON.parse(localStorage.getItem(SIZE) ?? "null");
+    if (v && typeof v.w === "number") return { w: v.w, h: typeof v.h === "number" ? v.h : null };
+  } catch {
+    /* none saved */
+  }
+  return { w: DEFAULT_W, h: null };
+};
+const clamp = (n: number, lo: number, hi: number) => Math.min(Math.max(n, lo), Math.max(lo, hi));
+
 const nonce = () => Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
 
 /** The dictionary card: one tab per dictionary that has the word, the entry in a closed frame. Opened by the `dict:lookup` event. */
@@ -17,6 +31,38 @@ export function DictHost() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const seq = useRef(0);
+  const [size, setSize] = useState<Size>(loadSize);
+  const card = useRef<HTMLElement>(null);
+
+  /** Drag an edge (or the corner) to resize; the card stays anchored at its top right. */
+  const drag = (dx: boolean, dy: boolean) => (e: React.PointerEvent) => {
+    e.preventDefault();
+    const el = card.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const start = { x: e.clientX, y: e.clientY, w: r.width, h: r.height };
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+    let last = size;
+    const move = (m: PointerEvent) => {
+      last = {
+        w: dx ? clamp(start.w - (m.clientX - start.x), 260, Math.min(900, window.innerWidth - 36)) : size.w,
+        h: dy ? clamp(start.h + (m.clientY - start.y), 160, window.innerHeight - 82) : size.h,
+      };
+      setSize(last);
+    };
+    const up = () => {
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerup", up);
+      try {
+        localStorage.setItem(SIZE, JSON.stringify(last));
+      } catch {
+        /* storage unavailable */
+      }
+    };
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", up);
+  };
 
   const run = useCallback(async (q: string) => {
     const my = ++seq.current;
@@ -68,7 +114,7 @@ export function DictHost() {
   const enabled = (dicts ?? []).filter((d) => d.enabled);
 
   return (
-    <aside className="dict-card" role="dialog" aria-label={t("dict.title")} data-testid="dict-card">
+    <aside ref={card} className="dict-card" style={{ width: size.w, ...(size.h ? { height: size.h } : {}) }} role="dialog" aria-label={t("dict.title")} data-testid="dict-card">
       <div className="dict-head">
         <BookOpen size={16} />
         <form
@@ -122,6 +168,9 @@ export function DictHost() {
         </p>
       ))}
       {err && <p className="dict-err">{err}</p>}
+      <div className="dict-rz l" onPointerDown={drag(true, false)} />
+      <div className="dict-rz b" onPointerDown={drag(false, true)} />
+      <div className="dict-rz bl" onPointerDown={drag(true, true)} />
     </aside>
   );
 }
