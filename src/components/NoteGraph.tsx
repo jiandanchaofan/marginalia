@@ -1,3 +1,4 @@
+import { isDarkTheme } from "../settings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUpRight, BookOpen, CheckSquare, Target, FileText, FilePlus2, Maximize, Maximize2, Minimize, Minimize2, NotebookPen, PanelRightClose, PanelRightOpen, Plus, SlidersHorizontal, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
@@ -357,7 +358,7 @@ export function NoteGraph({ books, theme, onOpenNote, notify, headerExtra }: { b
   }, [showTasks]);
   // how every line is drawn: its shape, and the bend that avoids other lines and cards where it can
   const routes = useMemo(() => routeAll(shownLinks, pos, shape, sizes), [shownLinks, pos, shape, sizes]);
-  const colorOf = (l: NoteLink) => (l.color ? (theme === "dark" ? swatch(l.color).dark : swatch(l.color).ink) : undefined);
+  const colorOf = (l: NoteLink) => (l.color ? (isDarkTheme(theme) ? swatch(l.color).dark : swatch(l.color).ink) : undefined);
   /** The card (other than `except`) whose box contains this point of the graph, if any. */
   const cardAt = (pt: Pt, except: string): string | null => {
     for (const id of ids) {
@@ -802,7 +803,7 @@ export function NoteGraph({ books, theme, onOpenNote, notify, headerExtra }: { b
                 ref={(el) => void (el ? nodeEls.current.set(id, el) : nodeEls.current.delete(id))}
                 data-node={id}
                 className={`graph-node ${sel === id ? "sel" : ""} ${dim ? "dim" : ""} ${isFreeNote(h.note) ? "free" : ""} ${isDot ? "dot" : ""} ${cs.w < 120 ? "compact" : ""}`}
-                style={{ left: p.x - cs.w / 2, top: p.y - cs.h / 2, width: cs.w, height: cs.h, ["--accent" as string]: theme === "dark" ? sw.dark : sw.ink }}
+                style={{ left: p.x - cs.w / 2, top: p.y - cs.h / 2, width: cs.w, height: cs.h, ["--accent" as string]: isDarkTheme(theme) ? sw.dark : sw.ink }}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   const r = box.current!.getBoundingClientRect();
@@ -898,7 +899,7 @@ export function NoteGraph({ books, theme, onOpenNote, notify, headerExtra }: { b
                       key={p.key}
                       title={p.name}
                       className={`graph-dot ${editor.link.color === p.key ? "on" : ""}`}
-                      style={{ background: theme === "dark" ? p.dark : p.ink }}
+                      style={{ background: isDarkTheme(theme) ? p.dark : p.ink }}
                       onClick={() => restyle({ color: p.key })}
                     />
                   ))}

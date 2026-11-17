@@ -4,7 +4,11 @@ import { PALETTE, STYLES } from "./core/palette";
 import type { LangPref } from "./i18n";
 import { normalizeTag } from "./notes/tags";
 
-export type Theme = "paper" | "light" | "dark";
+export type Theme = "paper" | "light" | "dark" | "green" | "parch" | "brown";
+/** Themes with a dark page (highlight colours and the dark-only styles follow this, not the name). */
+export const isDarkTheme = (t: Theme): boolean => t === "dark" || t === "brown";
+/** The class a themed container carries: a dark theme also carries `theme-dark`, so the dark-only rules apply to it. */
+export const themeClass = (t: Theme): string => (t === "brown" ? "theme-dark theme-brown" : `theme-${t}`);
 export type FontChoice = "serif" | "kai" | "sans";
 /** Latin-script font, chosen separately from the Chinese one. */
 export type EnFontChoice = "same" | "literata" | "sourceserif" | "book" | "georgia" | "palatino" | "times" | "cambria" | "sans" | "humanist" | "verdana";

@@ -1,3 +1,4 @@
+import { themeClass } from "../settings";
 import { useEffect, useMemo, useState } from "react";
 import { BookMarked, BookOpen, CheckSquare, Compass, FilePlus2, Layers, LayoutGrid, List, Pencil, Search, Settings as SettingsIcon, Square, StickyNote, Tags, Trash2, X, ListChecks } from "lucide-react";
 import { STATUS_LABEL, readStatus, type BookRecord, type ReadStatus } from "../core/types";
@@ -392,7 +393,7 @@ export function Library(props: Props) {
   };
 
   return (
-    <div className={`library theme-${theme} view-${view} ${selecting ? "shelf-selecting" : ""}`}>
+    <div className={`library ${themeClass(theme)} view-${view} ${selecting ? "shelf-selecting" : ""}`}>
       <header className="lib-header">
         <div className="brand">
           <AppLogo />

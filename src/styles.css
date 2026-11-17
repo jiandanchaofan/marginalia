@@ -8874,3 +8874,65 @@ nav.settings-tabs button.on { background: var(--soft); color: var(--text); font-
 /* settings cards: the three themes share the row evenly */
 .settings-pane.cards .theme-row { align-self: stretch; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .settings-pane.cards .theme-swatch { width: auto; min-width: 0; }
+
+/* ---- more themes: soft green, parchment, brown night (the last also carries .theme-dark for the dark-only rules) ---- */
+.theme-green,
+:root[data-theme="green"] {
+  --bg: #dfe8d6;
+  --page: #e8f0de;
+  --text: #2c3a2a;
+  --text-2: #52624d;
+  --muted: #7f9079;
+  --line: #c8d6bd;
+  --soft: #d3dfc8;
+  --card: #f0f5e8;
+  --card-shadow: 0 1px 2px rgb(30 50 20 / 0.05), 0 2px 8px -4px rgb(30 50 20 / 0.1);
+  --lift-shadow: 0 18px 40px -18px rgb(30 50 20 / 0.35), 0 2px 6px rgb(30 50 20 / 0.06);
+  --ui-accent: #4f7a45;
+  --toolbar: rgb(30 40 28 / 0.94);
+  --toolbar-text: #eef4e6;
+  --pdf-shadow: 0 1px 3px rgb(30 50 20 / 0.14), 0 8px 24px -12px rgb(30 50 20 / 0.22);
+  --blend: multiply;
+  color-scheme: light;
+}
+.theme-parch,
+:root[data-theme="parch"] {
+  --bg: #ead9b3;
+  --page: #f2e5c4;
+  --text: #3a2d18;
+  --text-2: #6a5736;
+  --muted: #9a8660;
+  --line: #d9c598;
+  --soft: #e2d1a6;
+  --card: #f7edd2;
+  --card-shadow: 0 1px 2px rgb(70 45 10 / 0.06), 0 2px 8px -4px rgb(70 45 10 / 0.12);
+  --lift-shadow: 0 18px 40px -18px rgb(70 45 10 / 0.38), 0 2px 6px rgb(70 45 10 / 0.08);
+  --ui-accent: #8c5a1c;
+  --toolbar: rgb(44 32 16 / 0.94);
+  --toolbar-text: #f6ecd4;
+  --pdf-shadow: 0 1px 3px rgb(70 45 10 / 0.16), 0 8px 24px -12px rgb(70 45 10 / 0.24);
+  --blend: multiply;
+  color-scheme: light;
+}
+.theme-brown,
+:root[data-theme="brown"] {
+  --bg: #211a15;
+  --page: #2a2019;
+  --text: #e4d6bf;
+  --text-2: #bfae94;
+  --muted: #8a7a66;
+  --line: #3a2e25;
+  --soft: #32271f;
+  --card: #2f241c;
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  --lift-shadow: 0 18px 40px -16px rgb(0 0 0 / 0.7), 0 2px 6px rgb(0 0 0 / 0.3);
+  --ui-accent: #e0a458;
+  --toolbar: rgb(52 40 31 / 0.96);
+  --toolbar-text: #efe3cc;
+  --pdf-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+  --blend: normal;
+  color-scheme: dark;
+}
+.theme-swatch.t-green { background: #e8f0de; color: #2c3a2a; }
+.theme-swatch.t-parch { background: #f2e5c4; color: #3a2d18; }
+.theme-swatch.t-brown { background: #2a2019; color: #e4d6bf; }

@@ -25,7 +25,7 @@ import { notesStore, type NoteHit } from "../notes/store";
 import { parseTags } from "../notes/tags";
 import { putImage } from "../notes/images";
 import { EMPTY_FILTER, NotesBrowser, type NotesFilter } from "./NotesBrowser";
-import { bodyFont, type Settings } from "../settings";
+import { bodyFont, type Settings, isDarkTheme, themeClass } from "../settings";
 import { NoteCard } from "./NoteCard";
 import { DocNotes, ReadingMeta } from "./DocNotes";
 import { ReadingStats } from "../reading/ReadingStats";
@@ -242,7 +242,7 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
   const locRef = useRef<Loc | null>(book.location ?? null);
 
   const isPdf = book.format === "pdf";
-  const dark = settings.theme === "dark";
+  const dark = isDarkTheme(settings.theme);
   const shownTitle = book.origTitle ? book.title : (doc?.title ?? book.title);
   const fontPx = isPdf ? 14 : settings.fontSize;
   const L = computeStage(avail, doc?.preferredWidth ?? (isPdf ? 860 : 680), isPdf ? 16 : settings.fontSize, settings.layout);
@@ -1238,7 +1238,7 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
 
   return (
     <div
-      className={`reader theme-${settings.theme} mode-${L.immersive ? "immersive" : L.mode}`}
+      className={`reader ${themeClass(settings.theme)} mode-${L.immersive ? "immersive" : L.mode}`}
     >
       {zoomHint && <div className="zoom-hint">{Math.round(settings.zoom * 100)}%</div>}
       <SlotHost slot="reader.overlay" ctx={{ docId: book.id }} />

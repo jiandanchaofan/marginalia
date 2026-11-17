@@ -29,7 +29,7 @@ import {
   settingsStore,
   type ImportedBook,
 } from "./platform";
-import { DEFAULT_SETTINGS, autoZoomFor, bodyFont, normalizeSettings, type Settings } from "./settings";
+import { DEFAULT_SETTINGS, autoZoomFor, bodyFont, normalizeSettings, type Settings, isDarkTheme, themeClass } from "./settings";
 import { Library } from "./components/Library";
 import { Reader } from "./components/Reader";
 import { notesStore, useNotesVersion, type NoteHit } from "./notes/store";
@@ -549,7 +549,7 @@ export default function App() {
     settings: (tab) => (setSettingsTab(tab), setShowSettings(true)),
     importDocs: () => void pick(),
     clip: () => setClip({}),
-    toggleTheme: () => updateSettings({ theme: settings.theme === "dark" ? "paper" : "dark" }),
+    toggleTheme: () => updateSettings({ theme: isDarkTheme(settings.theme) ? "paper" : "dark" }),
     lang: (l) => updateSettings({ lang: l }),
     card: (k) => void toggleCard(k),
     capture: (kind) => {
@@ -636,7 +636,7 @@ export default function App() {
         />
       )}
       {dragOver && (
-        <div className={`drop-zone theme-${settings.theme}`}>
+        <div className={`drop-zone ${themeClass(settings.theme)}`}>
           <div>{t("app.dropToImport")}</div>
         </div>
       )}

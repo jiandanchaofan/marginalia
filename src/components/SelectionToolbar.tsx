@@ -1,3 +1,4 @@
+import { isDarkTheme } from "../settings";
 import { BookOpen, Copy, ListChecks, MessageSquarePlus } from "lucide-react";
 import { PALETTE, STYLES } from "../core/palette";
 import type { HighlightStyle } from "../core/types";
@@ -37,7 +38,7 @@ export function SelectionToolbar({ x, y, below, theme, color, style, onStyle, on
             key={p.key}
             title={t("sel.tip", { name: p.name })}
             className={`swatch-dot big ${p.key === color ? "on" : ""}`}
-            style={{ ["--dot" as string]: theme === "dark" ? p.dark : p.ink, ["--dot-soft" as string]: theme === "dark" ? p.dark : p.light }}
+            style={{ ["--dot" as string]: isDarkTheme(theme) ? p.dark : p.ink, ["--dot-soft" as string]: isDarkTheme(theme) ? p.dark : p.light }}
             onClick={() => onPick(p.key)}
           />
         ))}
@@ -47,7 +48,7 @@ export function SelectionToolbar({ x, y, below, theme, color, style, onStyle, on
           <span key={s.key} className="style-slot">
             {i > 0 && STYLES[i - 1].group !== s.group && <span className="sel-sep thin" />}
             <button title={s.key === style ? t("sel.styleClear", { name: s.name }) : t("sel.tip", { name: s.name })} className={`style-chip ${s.key === style ? "on" : ""}`} onClick={() => onStyle(s.key)}>
-              <StylePreview style={s.key} color={theme === "dark" ? cur.dark : cur.ink} soft={theme === "dark" ? `${cur.dark}55` : cur.light} />
+              <StylePreview style={s.key} color={isDarkTheme(theme) ? cur.dark : cur.ink} soft={isDarkTheme(theme) ? `${cur.dark}55` : cur.light} />
             </button>
           </span>
         ))}

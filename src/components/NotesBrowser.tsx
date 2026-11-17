@@ -1,3 +1,4 @@
+import { isDarkTheme } from "../settings";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { docLabel } from "../host/label";
 import { ArrowUpRight, Check, CheckSquare, Copy, Download, FilePlus2, Hash, ImagePlus, Link2, Palette, Pencil, Search, Square, Star, StickyNote, Tag, Trash2, X } from "lucide-react";
@@ -222,7 +223,7 @@ export function NotesBrowser(props: Props) {
               key={p.key}
               title={p.name}
               className={`swatch-dot ${filter.colors.includes(p.key) ? "on" : ""}`}
-              style={{ ["--dot" as string]: theme === "dark" ? p.dark : p.ink, ["--dot-soft" as string]: theme === "dark" ? p.dark : p.light }}
+              style={{ ["--dot" as string]: isDarkTheme(theme) ? p.dark : p.ink, ["--dot-soft" as string]: isDarkTheme(theme) ? p.dark : p.light }}
               onClick={() => set({ colors: filter.colors.includes(p.key) ? filter.colors.filter((c) => c !== p.key) : [...filter.colors, p.key] })}
             />
           ))}
@@ -457,7 +458,7 @@ function BatchBar({
               key={p.key}
               title={p.name}
               className="swatch-dot big"
-              style={{ ["--dot" as string]: theme === "dark" ? p.dark : p.ink, ["--dot-soft" as string]: theme === "dark" ? p.dark : p.light }}
+              style={{ ["--dot" as string]: isDarkTheme(theme) ? p.dark : p.ink, ["--dot-soft" as string]: isDarkTheme(theme) ? p.dark : p.light }}
               onClick={() => recolor(p.key)}
             />
           ))}
@@ -561,7 +562,7 @@ function NoteItem({
   return (
     <div
       className={`nb-item ${free ? "free" : ""} ${fresh ? "fresh" : ""} ${editing ? "editing" : ""} ${selectable ? "selectable" : ""} ${selected ? "selected" : ""}`}
-      style={{ ["--accent" as string]: theme === "dark" ? sw.dark : sw.ink }}
+      style={{ ["--accent" as string]: isDarkTheme(theme) ? sw.dark : sw.ink }}
       onClick={selectable ? onSelect : undefined}
       // Double-click anywhere on the card (not on its buttons, tags or pictures) starts editing.
       onDoubleClick={(e) => {

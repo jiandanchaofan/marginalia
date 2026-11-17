@@ -1,3 +1,4 @@
+import { isDarkTheme } from "../settings";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { docShortLabel } from "../host/registry";
 import { ArrowLeftRight, Hash, ImagePlus, Palette, Trash2 } from "lucide-react";
@@ -50,7 +51,7 @@ export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSi
     if (!active) setLook(false);
   }, [active]);
   const sw = swatch(a.color);
-  const accent = theme === "dark" ? sw.dark : sw.ink;
+  const accent = isDarkTheme(theme) ? sw.dark : sw.ink;
 
   useLayoutEffect(() => {
     if (!onHeight || !ref.current) return;
@@ -66,7 +67,7 @@ export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSi
     <div
       ref={ref}
       className={`note-card ${variant === "sheet" ? "in-sheet" : "margin"} ${side ?? ""} ${active ? "active" : ""}`}
-      style={{ ...style, ["--accent" as string]: accent, ["--tint" as string]: theme === "dark" ? `${sw.dark}22` : `${sw.light}66` }}
+      style={{ ...style, ["--accent" as string]: accent, ["--tint" as string]: isDarkTheme(theme) ? `${sw.dark}22` : `${sw.light}66` }}
       onMouseDown={(e) => {
         if (!active) {
           e.preventDefault();
@@ -117,7 +118,7 @@ export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSi
                 key={p.key}
                 title={p.name}
                 className={`swatch-dot ${p.key === a.color ? "on" : ""}`}
-                style={{ ["--dot" as string]: theme === "dark" ? p.dark : p.ink, ["--dot-soft" as string]: theme === "dark" ? p.dark : p.light }}
+                style={{ ["--dot" as string]: isDarkTheme(theme) ? p.dark : p.ink, ["--dot-soft" as string]: isDarkTheme(theme) ? p.dark : p.light }}
                 onClick={() => onChange({ color: p.key })}
               />
             ))}
@@ -130,7 +131,7 @@ export function NoteCard({ a, theme, active, autoFocus, variant, side, canSwapSi
                 className={`style-chip ${s.key === a.style ? "on" : ""}`}
                 onClick={() => onChange({ style: (s.key === a.style ? "none" : s.key) as HighlightStyle })}
               >
-                <StylePreview style={s.key} color={accent} soft={theme === "dark" ? `${sw.dark}55` : sw.light} />
+                <StylePreview style={s.key} color={accent} soft={isDarkTheme(theme) ? `${sw.dark}55` : sw.light} />
               </button>
             ))}
           </div>

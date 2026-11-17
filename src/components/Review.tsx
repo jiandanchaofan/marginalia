@@ -1,3 +1,4 @@
+import { isDarkTheme } from "../settings";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, RefreshCw, Sparkles } from "lucide-react";
 import type { BookRecord } from "../core/types";
@@ -30,7 +31,7 @@ export function ReviewCard({ hit: h, books, theme, onOpenNote, delay = 0, childr
   const sw = swatch(h.note.color);
   const b = books.get(h.bookId);
   return (
-    <article className="review-card" style={{ ["--accent" as string]: theme === "dark" ? sw.dark : sw.ink, animationDelay: `${delay}ms` }}>
+    <article className="review-card" style={{ ["--accent" as string]: isDarkTheme(theme) ? sw.dark : sw.ink, animationDelay: `${delay}ms` }}>
       {h.note.kind === "free" ? (
         <>
           <div className="review-doc-label">{t("review.free")}</div>

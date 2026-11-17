@@ -58,6 +58,9 @@ export function SettingsPanel({ s, onChange, isPdf, canZoom = false, libZoom = f
               ["paper", t("reading.theme.paper")],
               ["light", t("reading.theme.light")],
               ["dark", t("reading.theme.dark")],
+              ["green", t("reading.theme.green")],
+              ["parch", t("reading.theme.parch")],
+              ["brown", t("reading.theme.brown")],
             ] as [Theme, string][]
           ).map(([th, name]) => (
             <button key={th} className={`theme-swatch t-${th} ${s.theme === th ? "on" : ""}`} onClick={() => onChange({ theme: th })}>
