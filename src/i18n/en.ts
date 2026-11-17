@@ -9,8 +9,8 @@ export const en: Record<Key, string> & Record<string, string> = {
   "common.noToc": "This document has no table of contents",
 
   "settings.title": "Settings",
-  "settings.tab.look": "Appearance & reading",
-  "settings.tab.backup": "Data & backup",
+  "settings.tab.look": "Appearance",
+  "settings.tab.backup": "Backup",
   "settings.tab.about": "About",
   "settings.todo.title": "To-dos",
   "settings.todo.ask": "After I tick a to-do from a note, ask “What did you find?”",
