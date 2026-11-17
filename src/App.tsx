@@ -29,7 +29,7 @@ import {
   settingsStore,
   type ImportedBook,
 } from "./platform";
-import { DEFAULT_SETTINGS, autoZoomFor, bodyFont, normalizeSettings, type Settings, isDarkTheme, themeClass } from "./settings";
+import { DEFAULT_SETTINGS, autoZoomFor, bodyFont, normalizeSettings, type Settings, themeClass, rememberTheme, otherTheme } from "./settings";
 import { Library } from "./components/Library";
 import { Reader } from "./components/Reader";
 import { notesStore, useNotesVersion, type NoteHit } from "./notes/store";
@@ -549,7 +549,7 @@ export default function App() {
     settings: (tab) => (setSettingsTab(tab), setShowSettings(true)),
     importDocs: () => void pick(),
     clip: () => setClip({}),
-    toggleTheme: () => updateSettings({ theme: isDarkTheme(settings.theme) ? "paper" : "dark" }),
+    toggleTheme: () => (rememberTheme(settings.theme), updateSettings({ theme: otherTheme(settings.theme) })),
     lang: (l) => updateSettings({ lang: l }),
     card: (k) => void toggleCard(k),
     capture: (kind) => {

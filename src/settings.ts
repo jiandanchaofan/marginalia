@@ -9,6 +9,31 @@ export type Theme = "paper" | "light" | "dark" | "green" | "parch" | "brown";
 export const isDarkTheme = (t: Theme): boolean => t === "dark" || t === "brown";
 /** The class a themed container carries: a dark theme also carries `theme-dark`, so the dark-only rules apply to it. */
 export const themeClass = (t: Theme): string => (t === "brown" ? "theme-dark theme-brown" : `theme-${t}`);
+
+const LAST = "reader:theme-last";
+/** The last light and the last dark theme used, so the day/night switch returns to what the person chose. */
+const lastThemes = (): { light: Theme; dark: Theme } => {
+  try {
+    const v = JSON.parse(localStorage.getItem(LAST) ?? "null");
+    if (v && typeof v.light === "string" && typeof v.dark === "string") return v;
+  } catch {
+    /* none saved */
+  }
+  return { light: "paper", dark: "dark" };
+};
+export const rememberTheme = (t: Theme) => {
+  try {
+    const l = lastThemes();
+    localStorage.setItem(LAST, JSON.stringify(isDarkTheme(t) ? { ...l, dark: t } : { ...l, light: t }));
+  } catch {
+    /* storage unavailable */
+  }
+};
+/** What the day/night switch changes `t` to: from a dark theme to the last light one, and the other way round. */
+export const otherTheme = (t: Theme): Theme => {
+  const l = lastThemes();
+  return isDarkTheme(t) ? l.light : l.dark;
+};
 export type FontChoice = "serif" | "kai" | "sans";
 /** Latin-script font, chosen separately from the Chinese one. */
 export type EnFontChoice = "same" | "literata" | "sourceserif" | "book" | "georgia" | "palatino" | "times" | "cambria" | "sans" | "humanist" | "verdana";

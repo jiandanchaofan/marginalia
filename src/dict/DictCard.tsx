@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Library, Search, X } from "lucide-react";
 import { t } from "../i18n";
 import { dictApi, dictAvailable, type DictFound, type DictInfo } from "./api";
-import { frameDoc } from "./frame";
+import { frameDoc, type FrameLook } from "./frame";
+import { isDarkTheme, type Theme } from "../settings";
 import "./dict.css";
 
 const SIZE = "reader:dict-size";
@@ -188,10 +189,18 @@ export function DictHost() {
   );
 }
 
+/** The colours of the theme in use. */
+function themeLook(): FrameLook {
+  const root = document.documentElement;
+  const cs = getComputedStyle(root);
+  const theme = (root.dataset.theme ?? "paper") as Theme;
+  return { bg: cs.getPropertyValue("--page").trim(), fg: cs.getPropertyValue("--text").trim(), dark: isDarkTheme(theme) };
+}
+
 function EntryFrame({ entry, onWord }: { entry: { dictId: string; body: string; scripts: boolean }; onWord(w: string): void }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
-  const doc = useMemo(() => frameDoc(entry.body, entry.scripts, nonce()), [entry]);
+  const doc = useMemo(() => frameDoc(entry.body, entry.scripts, nonce(), themeLook()), [entry]);
 
   useEffect(() => {
     const on = async (e: MessageEvent) => {
