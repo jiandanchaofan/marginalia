@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { DatabaseBackup, FileText, FolderOpen, Info, Keyboard, Mail, Palette, SlidersHorizontal, Tag, X } from "lucide-react";
+import { DatabaseBackup, FileText, FolderOpen, Info, Keyboard, Mail, Palette, Puzzle, SlidersHorizontal, Tag, X } from "lucide-react";
 import type { BookRecord } from "../core/types";
 import { BIBLE_MODULE_ID } from "../modules/bible/ids";
 import type { Settings } from "../settings";
@@ -24,7 +24,7 @@ import { autostartState, setAutostart } from "../cards/tray";
 import { AppLogo } from "./AppLogo";
 import { DictSettings } from "../dict/DictSettings";
 
-export type Tab = "look" | "general" | "keys" | "backup" | "about";
+export type Tab = "look" | "general" | "keys" | "plugins" | "backup" | "about";
 
 interface Props {
   settings: Settings;
@@ -58,6 +58,9 @@ export function SettingsDialog({ settings, books, onChange, onClose, notify, ini
           <button className={tab === "keys" ? "on" : ""} onClick={() => setTab("keys")}>
             <Keyboard size={14} /> {t("settings.tab.keys")}
           </button>
+          <button className={tab === "plugins" ? "on" : ""} onClick={() => setTab("plugins")}>
+            <Puzzle size={14} /> {t("settings.tab.plugins")}
+          </button>
           <button className={tab === "backup" ? "on" : ""} onClick={() => setTab("backup")}>
             <DatabaseBackup size={14} /> {t("settings.tab.backup")}
           </button>
@@ -65,15 +68,15 @@ export function SettingsDialog({ settings, books, onChange, onClose, notify, ini
             <Info size={14} /> {t("settings.tab.about")}
           </button>
         </nav>
-        <div className={`settings-pane ${tab === "look" || tab === "general" || tab === "backup" ? "cards" : ""}`}>
+        <div className={`settings-pane ${tab === "look" || tab === "general" || tab === "plugins" || tab === "backup" ? "cards" : ""}`}>
           {tab === "look" && <SettingsPanel s={settings} onChange={onChange} isPdf={false} canZoom={isTauri} libZoom split afterTheme={<LangPane s={settings} onChange={onChange} />} />}
           {tab === "look" && <TodoPane />}
           {tab === "general" && isTauri && <CardsPane notify={notify} />}
           {tab === "general" && <ReadingPane s={settings} onChange={onChange} notify={notify} />}
           {tab === "general" && <BookSearchPane s={settings} onChange={onChange} books={books} />}
-          {tab === "general" && <ModulesPane s={settings} onChange={onChange} notify={notify} />}
           {tab === "general" && <DeletePane s={settings} onChange={onChange} />}
           {tab === "keys" && <KeysPane s={settings} onChange={onChange} />}
+          {tab === "plugins" && <ModulesPane s={settings} onChange={onChange} notify={notify} />}
           {tab === "backup" && <BackupPane books={books} notify={notify} />}
           {tab === "about" && <AboutPane />}
         </div>

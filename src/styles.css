@@ -8952,7 +8952,7 @@ nav.settings-tabs button.on { background: var(--soft); color: var(--text); font-
   border-radius: 10px;
   background: var(--card);
 }
-.settings-pane.cards .plugin-item > .check { font-weight: 600; color: var(--text); }
+.settings-pane.cards .plugin-item > .check { font-size: 13px; font-weight: 600; color: var(--text); }
 .settings-pane.cards .plugin-item > .dict-set,
 .settings-pane.cards .plugin-item > .sy-plugin,
 .settings-pane.cards .plugin-item > .sy-locked { margin-left: 0; align-self: stretch; padding-top: 8px; border-top: 1px dashed var(--line); }

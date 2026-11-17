@@ -82,6 +82,7 @@ export function allCommands(desktop: boolean): Command[] {
     setTo(t("settings.tab.look"), "look"),
     setTo(t("settings.tab.general"), "general"),
     setTo(t("settings.tab.keys"), "keys"),
+    setTo(t("settings.tab.plugins"), "plugins"),
     setTo(t("settings.tab.backup"), "backup"),
     setTo(t("settings.tab.about"), "about"),
 
