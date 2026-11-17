@@ -42,12 +42,16 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
   );
 }
 
-export function SettingsPanel({ s, onChange, isPdf, canZoom = false, libZoom = false, stage }: { s: Settings; onChange(p: Partial<Settings>): void; isPdf: boolean; canZoom?: boolean; libZoom?: boolean; stage?: { mode: string; width: number; dual: number; single: number } }) {
-  return (
-    <div className="panel settings-panel">
-      <div className="panel-title">{t("reading.title")}</div>
-      <div className="settings-body">
-        <label>{t("reading.theme")}</label>
+export function SettingsPanel({ s, onChange, isPdf, canZoom = false, libZoom = false, stage, split = false, afterTheme }: { s: Settings; onChange(p: Partial<Settings>): void; isPdf: boolean; canZoom?: boolean; libZoom?: boolean; stage?: { mode: string; width: number; dual: number; single: number }; split?: boolean; afterTheme?: React.ReactNode }) {
+  const card = (title: string, children: React.ReactNode, key?: string) => (
+    <div className="panel settings-panel" key={key}>
+      <div className="panel-title">{title}</div>
+      <div className="settings-body">{children}</div>
+    </div>
+  );
+  const themeEl = (
+    <>
+        {!split && <label>{t("reading.theme")}</label>}
         <div className="theme-row">
           {(
             [
@@ -62,7 +66,9 @@ export function SettingsPanel({ s, onChange, isPdf, canZoom = false, libZoom = f
             </button>
           ))}
         </div>
-        {canZoom && (
+    </>
+  );
+  const zoomEl = canZoom && (
           <>
             {libZoom && (
               <>
@@ -89,10 +95,10 @@ export function SettingsPanel({ s, onChange, isPdf, canZoom = false, libZoom = f
             <input type="range" min={ZOOM_MIN} max={ZOOM_MAX} step={ZOOM_STEP} value={s.zoom} onChange={(e) => onChange({ zoom: Math.round(+e.target.value * 10) / 10 })} />
             <p className="settings-hint">{t("reading.zoom.hint")}</p>
           </>
-        )}
-        {!isPdf && (
+  );
+  const fontEl = !isPdf && (
           <>
-            <label>{t("reading.font")}</label>
+            {!split && <label>{t("reading.font")}</label>}
             <Segmented<FontChoice>
               value={s.font}
               options={[
@@ -122,6 +128,10 @@ export function SettingsPanel({ s, onChange, isPdf, canZoom = false, libZoom = f
               </button>
             )}
             <p className="settings-hint">{t("reading.fontEn.hint", { note: enNote(EN_FONTS.find((f) => f.key === s.fontEn) ?? EN_FONTS[0]) })}</p>
+          </>
+  );
+  const sizeEl = !isPdf && (
+          <>
             <label>
               {t("reading.size")} <em>{s.fontSize}px</em>
             </label>
@@ -134,7 +144,9 @@ export function SettingsPanel({ s, onChange, isPdf, canZoom = false, libZoom = f
               <input type="checkbox" checked={s.indent} onChange={(e) => onChange({ indent: e.target.checked })} /> {t("reading.indent")}
             </label>
           </>
-        )}
+  );
+  const layoutEl = (
+    <>
         <label>{t("reading.layout")}</label>
         <Segmented<ModePref>
           value={s.layout}
@@ -159,6 +171,28 @@ export function SettingsPanel({ s, onChange, isPdf, canZoom = false, libZoom = f
             })}
           </p>
         )}
+    </>
+  );
+  if (split) {
+    return (
+      <>
+        {card(t("reading.theme"), themeEl, "theme")}
+        {afterTheme}
+        {zoomEl && card(t("settings.card.zoom"), zoomEl, "zoom")}
+        {fontEl && card(t("settings.card.font"), fontEl, "font")}
+        {card(t("settings.card.text"), <>{sizeEl}{layoutEl}</>, "text")}
+      </>
+    );
+  }
+  return (
+    <div className="panel settings-panel">
+      <div className="panel-title">{t("reading.title")}</div>
+      <div className="settings-body">
+        {themeEl}
+        {zoomEl}
+        {fontEl}
+        {sizeEl}
+        {layoutEl}
       </div>
     </div>
   );

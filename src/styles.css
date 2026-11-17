@@ -8870,3 +8870,7 @@ nav.settings-tabs button.on { background: var(--soft); color: var(--text); font-
   nav.settings-tabs { width: auto; flex-direction: row; padding: 0 0 8px; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; }
   nav.settings-tabs button { width: auto; white-space: nowrap; }
 }
+
+/* settings cards: the three themes share the row evenly */
+.settings-pane.cards .theme-row { align-self: stretch; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.settings-pane.cards .theme-swatch { width: auto; min-width: 0; }

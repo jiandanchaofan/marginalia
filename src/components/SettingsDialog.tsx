@@ -65,9 +65,8 @@ export function SettingsDialog({ settings, books, onChange, onClose, notify, ini
             <Info size={14} /> {t("settings.tab.about")}
           </button>
         </nav>
-        <div className={`settings-pane ${tab === "general" || tab === "backup" ? "cards" : ""}`}>
-          {tab === "look" && <LangPane s={settings} onChange={onChange} />}
-          {tab === "look" && <SettingsPanel s={settings} onChange={onChange} isPdf={false} canZoom={isTauri} libZoom />}
+        <div className={`settings-pane ${tab === "look" || tab === "general" || tab === "backup" ? "cards" : ""}`}>
+          {tab === "look" && <SettingsPanel s={settings} onChange={onChange} isPdf={false} canZoom={isTauri} libZoom split afterTheme={<LangPane s={settings} onChange={onChange} />} />}
           {tab === "look" && <TodoPane />}
           {tab === "general" && isTauri && <CardsPane notify={notify} />}
           {tab === "general" && <ReadingPane s={settings} onChange={onChange} notify={notify} />}
