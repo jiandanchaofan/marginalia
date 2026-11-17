@@ -14,9 +14,8 @@ import { readingStore } from "../reading/store";
 import { reviewStore } from "../review/store";
 import { syncIndex, useIndexState } from "../search/indexer";
 import { KeysPane } from "../palette/KeysPane";
-import { SyncPane } from "../sync/SyncPane";
+import { SyncSettings } from "../sync/SyncSettings";
 import { failureOf, knownModules, recognizers, useRegistry } from "../host/registry";
-import { SYNC_VISIBLE } from "../sync/visible";
 import { DEFAULT_WEEK_TAG } from "../settings";
 import { normalizeTag } from "../notes/tags";
 import { CARDS_CHANGED, resetCards, toggleCard } from "../cards/windows";
@@ -72,10 +71,9 @@ export function SettingsDialog({ settings, books, onChange, onClose, notify, ini
           {tab === "general" && isTauri && <CardsPane notify={notify} />}
           {tab === "general" && <ReadingPane s={settings} onChange={onChange} notify={notify} />}
           {tab === "general" && <BookSearchPane s={settings} onChange={onChange} books={books} />}
-          {tab === "general" && <ModulesPane s={settings} onChange={onChange} />}
+          {tab === "general" && <ModulesPane s={settings} onChange={onChange} notify={notify} />}
           {tab === "general" && <DeletePane s={settings} onChange={onChange} />}
           {tab === "keys" && <KeysPane s={settings} onChange={onChange} />}
-          {tab === "backup" && SYNC_VISIBLE && <SyncPane notify={notify} />}
           {tab === "backup" && <BackupPane books={books} notify={notify} />}
           {tab === "about" && <AboutPane />}
         </div>
@@ -428,7 +426,7 @@ const unlocked = (): boolean => {
   }
 };
 
-function ModulesPane({ s, onChange }: { s: Settings; onChange(p: Partial<Settings>): void }) {
+function ModulesPane({ s, onChange, notify }: { s: Settings; onChange(p: Partial<Settings>): void; notify(msg: string): void }) {
   useRegistry();
   const [open, setOpen] = useState(unlocked);
   const taps = useRef({ n: 0, at: 0 });
@@ -466,6 +464,7 @@ function ModulesPane({ s, onChange }: { s: Settings; onChange(p: Partial<Setting
           </Fragment>
         ))}
         <DictSettings />
+        <SyncSettings notify={notify} />
         {recognizers().length > 0 && (
           <label className="check">
             <input type="checkbox" checked={s.refPreview !== false} onChange={(e) => onChange({ refPreview: e.target.checked })} /> {t("mod.refPreview")}

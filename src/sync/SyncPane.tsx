@@ -28,7 +28,7 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
 const mb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(0)} MB` : `${Math.round(n / 1024)} KB`);
 
 /** Settings → General → Cloud sync. */
-export function SyncPane({ notify }: { notify(msg: string): void }) {
+export function SyncPane({ notify, bare = false }: { notify(msg: string): void; bare?: boolean }) {
   const [st, setSt] = useState<SyncStatus>(EMPTY);
   const [mode, setMode] = useState<"create" | "join">("create");
   const [useRecovery, setUseRecovery] = useState(false);
@@ -59,6 +59,7 @@ export function SyncPane({ notify }: { notify(msg: string): void }) {
   }, []);
 
   if (!isTauri) {
+    if (bare) return <p className="settings-hint">{t("sy.desktopOnly")}</p>;
     return (
       <div className="panel settings-panel">
         <div className="panel-title">{t("sy.title")}</div>
@@ -102,9 +103,9 @@ export function SyncPane({ notify }: { notify(msg: string): void }) {
   const status = st.running ? t("sy.running") : st.lastError ? null : st.lastOkAt ? t("sy.lastOk", { when: fmtDateTime(st.lastOkAt, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) }) : t("sy.never");
 
   return (
-    <div className="panel settings-panel sy">
-      <div className="panel-title">{t("sy.title")}</div>
-      <div className="settings-body">
+    <div className={bare ? "sy sy-bare" : "panel settings-panel sy"}>
+      {!bare && <div className="panel-title">{t("sy.title")}</div>}
+      <div className={bare ? "" : "settings-body"}>
         {!st.connected ? (
           <>
             <p className="settings-hint"><b>{t("sy.offNote")}</b></p>

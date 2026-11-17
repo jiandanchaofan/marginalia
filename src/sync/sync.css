@@ -11,3 +11,6 @@
 .sy-modal h3 { margin: 0; display: flex; align-items: center; gap: 8px; }
 .sy-modal p { margin: 0; font-size: 13.5px; line-height: 1.6; }
 .sy-key { display: block; width: 100%; padding: 12px 14px; border-radius: 10px; background: var(--soft); border: 1px dashed var(--line); font-size: 15px; letter-spacing: 0.05em; word-break: break-all; user-select: all; }
+
+.sy-plugin { margin: 2px 0 8px 22px; }
+.sy-locked { margin: 0 0 4px 22px; }

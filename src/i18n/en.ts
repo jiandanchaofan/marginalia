@@ -1316,6 +1316,8 @@ export const en: Record<Key, string> & Record<string, string> = {
   "pal.dict": "Dictionary",
   "pal.dictRow": "Look up: {q}",
   "mod.dict": "Dictionary lookup",
+  "mod.sync": "Cloud sync (WebDAV)",
+  "mod.syncLocked": "Connected: disconnect below before switching it off.",
   "dict.set.up": "Move up",
   "dict.set.down": "Move down",
   "dict.set.remove": "Remove (keeps the file)",

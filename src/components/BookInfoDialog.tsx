@@ -3,7 +3,7 @@ import { Pencil, RotateCcw, Star, X } from "lucide-react";
 import type { BookRecord } from "../core/types";
 import { t } from "../i18n";
 import { confirmDialog, isTauri } from "../platform";
-import { SYNC_VISIBLE } from "../sync/visible";
+import { syncOn } from "../sync/visible";
 
 /** Rename an imported document / web article and add a free-text remark (附注) to it. */
 export function BookInfoDialog({ book, onSave, onClose }: { book: BookRecord; onSave(p: Partial<BookRecord>): void; onClose(): void }) {
@@ -97,7 +97,7 @@ export function BookInfoDialog({ book, onSave, onClose }: { book: BookRecord; on
             if (e.key === "Escape") onClose();
           }}
         />
-        {isTauri && SYNC_VISIBLE && (
+        {isTauri && syncOn() && (
           <>
             <label className="check">
               <input type="checkbox" checked={cloud} onChange={(e) => void toggleCloud(e.target.checked)} /> {t("cl.label")}

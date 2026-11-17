@@ -1297,6 +1297,8 @@ export const zhHant: Record<Key, string> & Record<string, string> = {
   "pal.dict": "辭典",
   "pal.dictRow": "查詞：{q}",
   "mod.dict": "查字典（辭典）",
+  "mod.sync": "雲端同步（堅果雲 WebDAV）",
+  "mod.syncLocked": "已連線，要關閉請先在下面點「中斷」。",
   "dict.set.up": "上移",
   "dict.set.down": "下移",
   "dict.set.remove": "移除（不刪除檔案）",

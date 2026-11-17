@@ -1301,6 +1301,8 @@ export const zhHans = {
   "pal.dict": "词典",
   "pal.dictRow": "查词：{q}",
   "mod.dict": "查字典（词典）",
+  "mod.sync": "云同步（坚果云 WebDAV）",
+  "mod.syncLocked": "已连接，要关闭请先在下面点「断开」。",
   "dict.set.up": "上移",
   "dict.set.down": "下移",
   "dict.set.remove": "移除（不删除文件）",
