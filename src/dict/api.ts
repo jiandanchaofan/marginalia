@@ -23,6 +23,8 @@ export interface DictEntry {
 }
 export interface DictFound {
   query: string;
+  /** The form that was found when it is not the one asked for ("running" -> "run"). */
+  resolved?: string | null;
   entries: DictEntry[];
   suggestions: string[];
   problems: string[];
@@ -77,8 +79,53 @@ export async function pickDictionary(): Promise<string | null> {
   return typeof res === "string" ? res : null;
 }
 
-/** Ask the card to look a word up. */
-export const lookupWord = (query: string) => window.dispatchEvent(new CustomEvent("dict:lookup", { detail: { query } }));
+/** What the card can do with the word besides showing it: save it as a note where the person selected it. */
+export interface LookupContext {
+  excerpt?: (note: string) => void;
+}
 
-/** A single word or short phrase of letters, what the double-click and the palette treat as a word to look up. */
-export const looksLikeWord = (s: string) => /^[A-Za-z][A-Za-z'’ -]{0,40}$/.test(s.trim());
+/** Ask the card to look a word up. */
+export const lookupWord = (query: string, ctx?: LookupContext) => window.dispatchEvent(new CustomEvent("dict:lookup", { detail: { query, ...ctx } }));
+
+/** A single word or short phrase of letters, or a short stretch of Chinese: what the palette treats as something to look up. */
+export const looksLikeWord = (s: string) => {
+  const t = s.trim();
+  return /^[A-Za-z][A-Za-z'\u2019 -]{0,40}$/.test(t) || /^[\u3400-\u9fff]{1,12}$/.test(t);
+};
+
+const HISTORY = "reader:dict-history";
+const HISTORY_MAX = 30;
+/** The words looked up lately (newest first). */
+export const lookupHistory = (): string[] => {
+  try {
+    const v = JSON.parse(localStorage.getItem(HISTORY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, HISTORY_MAX) : [];
+  } catch {
+    return [];
+  }
+};
+export const rememberLookup = (word: string): string[] => {
+  const list = [word, ...lookupHistory().filter((w) => w !== word)].slice(0, HISTORY_MAX);
+  try {
+    localStorage.setItem(HISTORY, JSON.stringify(list));
+  } catch {
+    /* storage unavailable */
+  }
+  return list;
+};
+export const clearLookupHistory = () => {
+  try {
+    localStorage.removeItem(HISTORY);
+  } catch {
+    /* storage unavailable */
+  }
+};
+
+/** A short plain-text definition from an entry's HTML (for the note): what comes after the headword, cut to a sentence or two. */
+export function shortDefinition(html: string, headword: string, max = 140): string {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("style,script,head,audio,img").forEach((e) => e.remove());
+  let text = (doc.body?.textContent ?? "").replace(/\s+/g, " ").trim();
+  if (headword && text.toLowerCase().startsWith(headword.toLowerCase())) text = text.slice(headword.length).trim();
+  return text.length > max ? `${text.slice(0, max).trim()}\u2026` : text;
+}

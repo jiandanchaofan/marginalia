@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Library, Search, X } from "lucide-react";
+import { BookOpen, Library, NotebookPen, Search, X } from "lucide-react";
 import { t } from "../i18n";
-import { dictApi, dictAvailable, type DictFound, type DictInfo } from "./api";
+import { dictApi, dictAvailable, clearLookupHistory, lookupHistory, rememberLookup, shortDefinition, type DictFound, type DictInfo, type LookupContext } from "./api";
+import { DOC_ANCHOR, FREE_BOOK, type Annotation } from "../core/types";
+import { notesStore } from "../notes/store";
+import { parseTags } from "../notes/tags";
 import { frameDoc, type FrameLook } from "./frame";
 import { isDarkTheme, type Theme } from "../settings";
 import "./dict.css";
@@ -33,6 +36,9 @@ export function DictHost() {
   const [busy, setBusy] = useState(false);
   const [bar, setBar] = useState(false);
   const [pick, setPick] = useState(false);
+  const [recent, setRecent] = useState<string[]>(lookupHistory);
+  const [saved, setSaved] = useState(false);
+  const ctx = useRef<LookupContext>({});
   const seq = useRef(0);
   const [size, setSize] = useState<Size>(loadSize);
   const card = useRef<HTMLElement>(null);
@@ -78,6 +84,8 @@ export function DictHost() {
       setFound(f);
       setDicts(list);
       setTab(0);
+      setSaved(false);
+      if (f.entries.length) setRecent(rememberLookup(f.resolved || f.query));
     } catch (e) {
       if (my === seq.current) setErr(String(e));
     } finally {
@@ -92,6 +100,7 @@ export function DictHost() {
       setOpen(true);
       setBar(false);
       setPick(false);
+      ctx.current = { excerpt: (e as CustomEvent).detail?.excerpt };
       void run(q);
     };
     window.addEventListener("dict:lookup", on);
@@ -112,9 +121,25 @@ export function DictHost() {
     return () => document.removeEventListener("mousedown", away, true);
   }, [open]);
 
-  if (!open || !dictAvailable()) return null;
   const entries = found?.entries ?? [];
   const cur = entries[Math.min(tab, entries.length - 1)];
+
+  /** Save the word and a short definition as a note: where it was selected, or as a free note when there was no selection. */
+  const excerpt = async () => {
+    if (!cur || saved) return;
+    const word = found?.resolved || found?.query || cur.headword;
+    const def = shortDefinition(cur.body, cur.headword);
+    const note = `#${t("dict.tag")} ${word}${def ? `\uff1a${def}` : ""}`;
+    if (ctx.current.excerpt) ctx.current.excerpt(note);
+    else {
+      const now = Date.now();
+      const a: Annotation = { id: crypto.randomUUID(), anchor: DOC_ANCHOR, color: "amber", style: "none", note, tags: parseTags(note), side: "right", kind: "free", createdAt: now, updatedAt: now };
+      await notesStore.add(FREE_BOOK, a);
+    }
+    setSaved(true);
+  };
+
+  if (!open || !dictAvailable()) return null;
   const noDicts = dicts !== null && dicts.length === 0;
   const enabled = (dicts ?? []).filter((d) => d.enabled);
 
@@ -122,7 +147,12 @@ export function DictHost() {
     <aside ref={card} className="dict-card" style={{ width: size.w, ...(size.h ? { height: size.h } : {}) }} role="dialog" aria-label={t("dict.title")} data-testid="dict-card">
       <div className="dict-head">
         <BookOpen size={16} />
-        <b className="dict-word">{found?.query || text}</b>
+        <b className="dict-word">{found?.resolved ? `${found.query} \u2192 ${found.resolved}` : found?.query || text}</b>
+        {cur && (
+          <button className={"icon-btn" + (saved ? " on" : "")} onClick={() => void excerpt()} title={saved ? t("dict.excerpted") : t("dict.excerpt")} aria-label={t("dict.excerpt")} disabled={saved}>
+            <NotebookPen size={16} />
+          </button>
+        )}
         <button className={"icon-btn" + (bar ? " on" : "")} aria-pressed={bar} onClick={() => setBar(!bar)} title={t("dict.search")} aria-label={t("dict.search")}>
           <Search size={16} />
         </button>
@@ -150,6 +180,25 @@ export function DictHost() {
           <Search size={14} />
           <input autoFocus value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} aria-label={t("dict.title")} />
         </form>
+      )}
+      {bar && recent.length > 0 && (
+        <div className="dict-recent">
+          <span>{t("dict.recent")}</span>
+          {recent.slice(0, 12).map((w) => (
+            <button key={w} onClick={() => void run(w)}>
+              {w}
+            </button>
+          ))}
+          <button
+            className="clear"
+            onClick={() => {
+              clearLookupHistory();
+              setRecent([]);
+            }}
+          >
+            {t("dict.recentClear")}
+          </button>
+        </div>
       )}
       {pick && !noDicts && entries.length > 1 && (
         <div className="dict-tabs" role="tablist">

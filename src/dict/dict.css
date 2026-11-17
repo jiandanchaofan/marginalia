@@ -136,3 +136,9 @@
 .dict-word { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .dict-head .icon-btn.on { background: color-mix(in srgb, var(--ui-accent) 20%, transparent); color: var(--ui-accent); }
 .dict-q { flex: none; }
+
+.dict-recent { flex: none; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; color: var(--muted); max-height: 70px; overflow-y: auto; }
+.dict-recent button { border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-2); padding: 1px 9px; cursor: pointer; font-size: 12px; }
+.dict-recent button:hover { background: var(--soft); }
+.dict-recent button.clear { border: 0; color: var(--muted); text-decoration: underline; padding: 1px 4px; }
+.dict-head .icon-btn:disabled { opacity: 1; cursor: default; }

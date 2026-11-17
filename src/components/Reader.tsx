@@ -912,7 +912,7 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
       color,
       style,
       note,
-      tags: [],
+      tags: note ? parseTags(note) : [],
       side: "right",
       ...origin,
       createdAt: now,
@@ -1511,7 +1511,8 @@ export function Reader({ book, openAtNoteId, openAtText, openAtRef, settings, on
               onTodo={() => createFromSelection(settings.lastColor, settings.lastStyle === "none" ? "highlight" : settings.lastStyle, true, "- [ ] ")}
               hideCopy={!!sel.anchor.region}
               onDict={sel.anchor.region || !dictAvailable() ? undefined : () => {
-                lookupWord(sel.anchor.exact.trim().slice(0, 60));
+                const anchor = sel.anchor;
+                lookupWord(anchor.exact.trim().slice(0, 60), { excerpt: (note) => createFromAnchor(anchor, settings.lastColor, settings.lastStyle === "none" ? "highlight" : settings.lastStyle, false, note) });
                 window.getSelection()?.removeAllRanges();
                 setSel(null);
               }}

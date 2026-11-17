@@ -65,6 +65,8 @@ pub struct Entry {
 pub struct Found {
     pub query: String,
     pub entries: Vec<Entry>,
+    /// The form that was actually found, when it is not what was asked for ("running" -> "run", a longer Chinese phrase cut back).
+    pub resolved: Option<String>,
     /// Words that start like the query, when nothing was found.
     pub suggestions: Vec<String>,
     /// Dictionaries that could not be opened (missing file, ...), with the reason.
@@ -365,6 +367,110 @@ pub fn clean_query(q: &str) -> String {
     t.trim_matches(|c: char| !(c.is_alphanumeric() || c == '\'' && false)).to_string()
 }
 
+// ---------------------------------------------------------------- other forms of the word asked for
+
+const IRREGULAR: &[(&str, &str)] = &[
+    ("went", "go"), ("gone", "go"), ("was", "be"), ("were", "be"), ("been", "be"), ("is", "be"), ("are", "be"), ("am", "be"),
+    ("had", "have"), ("has", "have"), ("did", "do"), ("done", "do"), ("does", "do"), ("said", "say"), ("made", "make"),
+    ("took", "take"), ("taken", "take"), ("saw", "see"), ("seen", "see"), ("came", "come"), ("got", "get"), ("gotten", "get"),
+    ("gave", "give"), ("given", "give"), ("knew", "know"), ("known", "know"), ("thought", "think"), ("found", "find"),
+    ("told", "tell"), ("ran", "run"), ("wrote", "write"), ("written", "write"), ("spoke", "speak"), ("spoken", "speak"),
+    ("bought", "buy"), ("brought", "bring"), ("taught", "teach"), ("felt", "feel"), ("left", "leave"), ("kept", "keep"),
+    ("stood", "stand"), ("understood", "understand"), ("lost", "lose"), ("sat", "sit"), ("met", "meet"), ("led", "lead"),
+    ("began", "begin"), ("begun", "begin"), ("broke", "break"), ("broken", "break"), ("chose", "choose"), ("chosen", "choose"),
+    ("drew", "draw"), ("drawn", "draw"), ("drove", "drive"), ("driven", "drive"), ("ate", "eat"), ("eaten", "eat"),
+    ("fell", "fall"), ("fallen", "fall"), ("flew", "fly"), ("flown", "fly"), ("forgot", "forget"), ("forgotten", "forget"),
+    ("grew", "grow"), ("grown", "grow"), ("heard", "hear"), ("held", "hold"), ("hid", "hide"), ("hidden", "hide"),
+    ("rose", "rise"), ("risen", "rise"), ("sang", "sing"), ("sung", "sing"), ("slept", "sleep"), ("swam", "swim"), ("threw", "throw"),
+    ("thrown", "throw"), ("woke", "wake"), ("worn", "wear"), ("wore", "wear"), ("won", "win"), ("paid", "pay"), ("sold", "sell"),
+    ("sent", "send"), ("spent", "spend"), ("built", "build"), ("caught", "catch"), ("fought", "fight"),
+    ("men", "man"), ("women", "woman"), ("children", "child"), ("feet", "foot"), ("teeth", "tooth"), ("mice", "mouse"),
+    ("people", "person"), ("lives", "life"), ("wives", "wife"), ("knives", "knife"), ("leaves", "leaf"), ("wolves", "wolf"),
+    ("better", "good"), ("best", "good"), ("worse", "bad"), ("worst", "bad"),
+];
+
+fn is_cjk(c: char) -> bool {
+    matches!(c as u32, 0x3400..=0x9FFF | 0xF900..=0xFAFF | 0x20000..=0x2FFFF)
+}
+
+fn push_unique(v: &mut Vec<String>, s: String) {
+    if !s.is_empty() && !v.contains(&s) {
+        v.push(s);
+    }
+}
+
+/// What to try, in order, for the text asked for: the text itself; for a Latin word its lower-case form, the form without
+/// 's, and the base forms of plurals, verb endings and comparatives ("running" -> "run", "studies" -> "study", "went" -> "go");
+/// for Chinese the longest start of the text first, then shorter ones.
+pub fn candidates(q: &str) -> Vec<String> {
+    let mut out = vec![q.to_string()];
+    if q.chars().any(is_cjk) {
+        let chars: Vec<char> = q.chars().collect();
+        for n in (1..chars.len().min(12 + 1)).rev() {
+            push_unique(&mut out, chars[..n].iter().collect());
+        }
+        return out;
+    }
+    push_unique(&mut out, q.to_lowercase());
+    let mut w = q.to_lowercase().replace('\u{2019}', "'");
+    if let Some(x) = w.strip_suffix("'s").or_else(|| w.strip_suffix("s'")).or_else(|| w.strip_suffix('\'')) {
+        w = x.to_string();
+        push_unique(&mut out, w.clone());
+    }
+    if w.contains(' ') || w.contains('-') || !w.chars().all(|c| c.is_ascii_alphabetic()) {
+        return out;
+    }
+    if let Some((_, base)) = IRREGULAR.iter().find(|(f, _)| *f == w) {
+        push_unique(&mut out, base.to_string());
+    }
+    let n = w.len();
+    let undouble = |stem: &str| -> Option<String> {
+        let b = stem.as_bytes();
+        (b.len() >= 3 && b[b.len() - 1] == b[b.len() - 2] && !b"aeiou".contains(&b[b.len() - 1])).then(|| stem[..stem.len() - 1].to_string())
+    };
+    if n > 3 {
+        if let Some(stem) = w.strip_suffix("ies") {
+            push_unique(&mut out, format!("{stem}y"));
+        }
+        if let Some(stem) = w.strip_suffix("ied") {
+            push_unique(&mut out, format!("{stem}y"));
+        }
+        if let Some(stem) = w.strip_suffix("ier").or_else(|| w.strip_suffix("iest")) {
+            push_unique(&mut out, format!("{stem}y"));
+        }
+        if let Some(stem) = w.strip_suffix("ily") {
+            push_unique(&mut out, format!("{stem}y"));
+        }
+        if let Some(stem) = w.strip_suffix("ves") {
+            push_unique(&mut out, format!("{stem}f"));
+            push_unique(&mut out, format!("{stem}fe"));
+        }
+        if let Some(stem) = w.strip_suffix("es") {
+            push_unique(&mut out, stem.to_string());
+        }
+        if let Some(stem) = w.strip_suffix('s') {
+            if !w.ends_with("ss") {
+                push_unique(&mut out, stem.to_string());
+            }
+        }
+        for suf in ["ing", "ed", "er", "est"] {
+            if let Some(stem) = w.strip_suffix(suf) {
+                if stem.len() >= 2 {
+                    if let Some(u) = undouble(stem) {
+                        push_unique(&mut out, u);
+                    }
+                    push_unique(&mut out, stem.to_string());
+                    push_unique(&mut out, format!("{stem}e"));
+                }
+            }
+        }
+        if let Some(stem) = w.strip_suffix("ly") {
+            push_unique(&mut out, stem.to_string());
+        }
+    }
+    out
+}
+
 pub fn lookup_in(open: &Opened, id: &str, query: &str) -> Result<Option<Entry>, String> {
     let mut tries = vec![query.to_string()];
     let lower = query.to_lowercase();
@@ -462,24 +568,35 @@ impl DictState {
         if q.is_empty() {
             return found;
         }
-        let mut first: Option<Arc<Opened>> = None;
+        let mut open: Vec<(String, Arc<Opened>)> = Vec::new();
         for c in self.configs(dir).into_iter().filter(|c| c.enabled) {
             match self.opened(&c) {
-                Ok(o) => {
-                    if first.is_none() {
-                        first = Some(o.clone());
-                    }
-                    match lookup_in(&o, &c.id, &q) {
-                        Ok(Some(e)) => found.entries.push(e),
-                        Ok(None) => {}
-                        Err(e) => found.problems.push(format!("{}：{e}", o.title)),
-                    }
-                }
+                Ok(o) => open.push((c.id.clone(), o)),
                 Err(e) => found.problems.push(format!("{}：{e}", Path::new(&c.path).file_stem().and_then(|s| s.to_str()).unwrap_or(""))),
             }
         }
+        let mut reported = std::collections::HashSet::new();
+        'forms: for cand in candidates(&q) {
+            for (id, o) in &open {
+                match lookup_in(o, id, &cand) {
+                    Ok(Some(e)) => found.entries.push(e),
+                    Ok(None) => {}
+                    Err(e) => {
+                        if reported.insert(id.clone()) {
+                            found.problems.push(format!("{}：{e}", o.title));
+                        }
+                    }
+                }
+            }
+            if !found.entries.is_empty() {
+                if cand != q {
+                    found.resolved = Some(cand);
+                }
+                break 'forms;
+            }
+        }
         if found.entries.is_empty() {
-            if let Some(o) = first {
+            if let Some((_, o)) = open.first() {
                 found.suggestions = o.mdx.prefix(&q, 8).unwrap_or_default();
             }
         }
@@ -696,4 +813,53 @@ mod tests {
         }
         let _ = fs::remove_dir_all(d);
     }
+    #[test]
+    fn other_forms_of_a_word_are_tried_in_a_sensible_order() {
+        let has = |q: &str, w: &str| candidates(q).iter().any(|c| c == w);
+        assert_eq!(candidates("hello")[0], "hello");
+        assert!(has("Hello", "hello"));
+        assert!(has("running", "run"), "{:?}", candidates("running"));
+        assert!(has("making", "make"));
+        assert!(has("studies", "study"));
+        assert!(has("studied", "study"));
+        assert!(has("boxes", "box"));
+        assert!(has("dogs", "dog"));
+        assert!(has("bigger", "big"));
+        assert!(has("quickly", "quick"));
+        assert!(has("went", "go"));
+        assert!(has("children", "child"));
+        assert!(has("wolves", "wolf") && has("knives", "knife"));
+        assert!(has("dog's", "dog"));
+        assert!(!has("glass", "glas"), "a word ending in ss is not a plural");
+        assert_eq!(candidates("ice cream"), vec!["ice cream".to_string()], "a phrase is only tried as it is (and lower-case)");
+    }
+
+    #[test]
+    fn chinese_is_cut_back_from_the_end_to_the_longest_start_that_is_a_word() {
+        let c = candidates("读书笔记真好用");
+        assert_eq!(c[0], "读书笔记真好用");
+        assert_eq!(c[1], "读书笔记真好");
+        assert_eq!(c.last().unwrap(), "读");
+        let long: String = "字".repeat(30);
+        assert_eq!(candidates(&long)[1].chars().count(), 12, "never more than 12 characters are tried");
+    }
+
+    #[test]
+    fn a_plural_is_found_through_its_base_form_and_says_which_form_was_found() {
+        let dir = std::env::temp_dir().join(format!("marginalia-dict-forms-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let o = Arc::new(Opened { title: "T".into(), mdx: crate::mdict::tests_support::tiny(&dir), mdds: vec![], dir: dir.clone(), stem: "tiny".into() });
+        let st = DictState::default();
+        st.open.lock().unwrap().insert("tiny".into(), o);
+        *st.list.lock().unwrap() = Some(vec![Config { id: "tiny".into(), path: "tiny".into(), enabled: true }]);
+        let f = st.lookup(&dir, "Hellos");
+        assert_eq!(f.entries.len(), 1, "{:?}", f.problems);
+        assert_eq!(f.resolved.as_deref(), Some("hello"));
+        let f = st.lookup(&dir, "hello");
+        assert_eq!(f.entries.len(), 1);
+        assert!(f.resolved.is_none(), "what was asked for is what was found");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
 }
