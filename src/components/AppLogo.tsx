@@ -1,38 +1,47 @@
 import { useId } from "react";
 
-/** The app icon (a page with a highlighted line and a note in the margin), drawn as SVG: the same artwork as src-tauri/icons/app-icon.svg. */
+/** The app icon (a page with a highlighted line and a big note in the margin), drawn as SVG: the same artwork as src-tauri/icons/app-icon.svg. */
 export function AppLogo({ className = "brand-mark" }: { className?: string }) {
   const id = useId().replace(/:/g, "");
   return (
     <span className={className} aria-hidden="true">
-      <svg viewBox="64 64 896 896" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="20 20 984 984" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id={`${id}bg`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#3a3029" />
-            <stop offset="1" stopColor="#1e1915" />
+            <stop offset="0" stopColor="#f1e7d2" />
+            <stop offset="1" stopColor="#e2d4b8" />
           </linearGradient>
           <linearGradient id={`${id}pp`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#fbf7ef" />
-            <stop offset="1" stopColor="#efe7d8" />
+            <stop offset="0" stopColor="#fffdf8" />
+            <stop offset="1" stopColor="#f6efe0" />
           </linearGradient>
+          <filter id={`${id}sh`} x="-10%" y="-10%" width="125%" height="125%">
+            <feDropShadow dx="0" dy="12" stdDeviation="14" floodColor="#4a3826" floodOpacity="0.3" />
+          </filter>
         </defs>
-        <rect x="64" y="64" width="896" height="896" rx="200" fill={`url(#${id}bg)`} />
-        <rect x="250" y="210" width="430" height="604" rx="26" fill={`url(#${id}pp)`} />
-        <g fill="#cfc4b2">
-          <rect x="300" y="292" width="330" height="22" rx="11" />
-          <rect x="300" y="362" width="300" height="22" rx="11" />
-          <rect x="300" y="502" width="320" height="22" rx="11" />
-          <rect x="300" y="572" width="250" height="22" rx="11" />
-          <rect x="300" y="642" width="310" height="22" rx="11" />
-          <rect x="300" y="712" width="200" height="22" rx="11" />
+        <rect x="20" y="20" width="984" height="984" rx="210" fill={`url(#${id}bg)`} />
+        <rect x="96" y="84" width="580" height="856" rx="34" fill={`url(#${id}pp)`} filter={`url(#${id}sh)`} />
+        <g fill="#cbbfa8">
+          <rect x="156" y="170" width="440" height="34" rx="17" />
+          <rect x="156" y="260" width="400" height="34" rx="17" />
+          <rect x="156" y="450" width="430" height="34" rx="17" />
+          <rect x="156" y="540" width="340" height="34" rx="17" />
+          <rect x="156" y="630" width="410" height="34" rx="17" />
+          <rect x="156" y="720" width="300" height="34" rx="17" />
+          <rect x="156" y="810" width="380" height="34" rx="17" />
         </g>
-        <rect x="290" y="420" width="290" height="44" rx="10" fill="#f2c94c" />
-        <rect x="300" y="432" width="260" height="20" rx="10" fill="#b58a2a" opacity="0.55" />
-        <path d="M600 442 C 650 442, 660 400, 712 400" fill="none" stroke="#f2c94c" strokeWidth="10" strokeLinecap="round" />
-        <rect x="700" y="330" width="120" height="150" rx="20" fill="#f2c94c" />
-        <rect x="726" y="368" width="68" height="14" rx="7" fill="#3a3029" opacity="0.55" />
-        <rect x="726" y="400" width="52" height="14" rx="7" fill="#3a3029" opacity="0.55" />
-        <rect x="726" y="432" width="60" height="14" rx="7" fill="#3a3029" opacity="0.55" />
+        <rect x="136" y="338" width="480" height="76" rx="18" fill="#f2c94c" />
+        <rect x="156" y="358" width="440" height="36" rx="18" fill="#b58a2a" opacity="0.55" />
+        <path d="M606 376 C 662 376, 676 440, 726 440" fill="none" stroke="#e8b92f" strokeWidth="16" strokeLinecap="round" />
+        <g filter={`url(#${id}sh)`}>
+          <rect x="686" y="290" width="298" height="400" rx="40" fill="#f2c94c" />
+        </g>
+        <g fill="#3a3029" opacity="0.6">
+          <rect x="740" y="370" width="190" height="28" rx="14" />
+          <rect x="740" y="446" width="150" height="28" rx="14" />
+          <rect x="740" y="522" width="176" height="28" rx="14" />
+          <rect x="740" y="598" width="120" height="28" rx="14" />
+        </g>
       </svg>
     </span>
   );
