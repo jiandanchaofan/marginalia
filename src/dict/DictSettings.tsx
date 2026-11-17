@@ -24,7 +24,7 @@ export function DictSettings() {
     if (p) await act(() => dictApi.add(p));
   };
   return (
-    <>
+    <div className="plugin-item">
       <label className="check">
         <input
           type="checkbox"
@@ -65,7 +65,7 @@ export function DictSettings() {
           {err && <p className="sy-err">{err}</p>}
         </div>
       )}
-    </>
+    </div>
   );
 }
 

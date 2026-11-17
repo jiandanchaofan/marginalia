@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DatabaseBackup, FileText, FolderOpen, Info, Keyboard, Mail, Palette, SlidersHorizontal, Tag, X } from "lucide-react";
 import type { BookRecord } from "../core/types";
 import { BIBLE_MODULE_ID } from "../modules/bible/ids";
@@ -457,19 +457,21 @@ function ModulesPane({ s, onChange, notify }: { s: Settings; onChange(p: Partial
       <div className="settings-body">
         <p className="settings-hint">{t("mod.hint")}</p>
         {list.map((m) => (
-          <Fragment key={m.id}>
+          <div className="plugin-item" key={m.id}>
             <label className="check">
               <input type="checkbox" checked={on.has(m.id)} onChange={(e) => flip(m.id, e.target.checked)} /> {m.name}
             </label>
             {on.has(m.id) && failureOf(m.id) && <p className="sy-err">{t("mod.failed", { err: failureOf(m.id)! })}</p>}
-          </Fragment>
+          </div>
         ))}
         <DictSettings />
         <SyncSettings notify={notify} />
         {recognizers().length > 0 && (
-          <label className="check">
-            <input type="checkbox" checked={s.refPreview !== false} onChange={(e) => onChange({ refPreview: e.target.checked })} /> {t("mod.refPreview")}
-          </label>
+          <div className="plugin-item">
+            <label className="check">
+              <input type="checkbox" checked={s.refPreview !== false} onChange={(e) => onChange({ refPreview: e.target.checked })} /> {t("mod.refPreview")}
+            </label>
+          </div>
         )}
       </div>
     </div>

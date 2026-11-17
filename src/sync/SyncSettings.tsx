@@ -25,7 +25,7 @@ export function SyncSettings({ notify }: { notify(msg: string): void }) {
     };
   }, [on]);
   return (
-    <>
+    <div className="plugin-item">
       <label className="check">
         <input
           type="checkbox"
@@ -44,6 +44,6 @@ export function SyncSettings({ notify }: { notify(msg: string): void }) {
           <SyncPane notify={notify} bare />
         </div>
       )}
-    </>
+    </div>
   );
 }

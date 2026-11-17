@@ -8939,3 +8939,22 @@ nav.settings-tabs button.on { background: var(--soft); color: var(--text); font-
 
 /* the chosen theme: a full border drawn inside the swatch (an outline outside it was cut off by the card) */
 .theme-swatch.on { outline: none; box-shadow: inset 0 0 0 2px var(--ui-accent); border-color: var(--ui-accent); }
+
+/* Settings -> Plugins: each plugin is its own row with its settings inside it */
+.settings-pane.cards .plugin-item {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+.settings-pane.cards .plugin-item > .check { font-weight: 600; color: var(--text); }
+.settings-pane.cards .plugin-item > .dict-set,
+.settings-pane.cards .plugin-item > .sy-plugin,
+.settings-pane.cards .plugin-item > .sy-locked { margin-left: 0; align-self: stretch; padding-top: 8px; border-top: 1px dashed var(--line); }
+.settings-pane.cards .plugin-item .dict-set { margin: 0; }
+.settings-pane.cards .plugin-item > .sy-locked { border-top: 0; padding-top: 0; }
