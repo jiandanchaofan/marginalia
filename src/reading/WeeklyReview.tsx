@@ -183,7 +183,8 @@ export function WeeklyReview({ books, notify, onOpenNote }: { books: Map<string,
         return <p className="wr-sum">{t("nr.weekLine", { n: l.length, p: known })}</p>;
       })()}
 
-      <div className="wr-sec">{t("wr.sReading")}</div>
+      <section className="wr-card">
+        <div className="wr-sec">{t("wr.sReading")}</div>
       {week.secs < 60 ? (
         <p className="wr-sum">{t("wr.noReading")}</p>
       ) : (
@@ -224,8 +225,9 @@ export function WeeklyReview({ books, notify, onOpenNote }: { books: Map<string,
           </div>
         </div>
       )}
-
-      <div className="wr-sec">{t("wr.sNotes")}</div>
+      </section>
+      <section className="wr-card">
+        <div className="wr-sec">{t("wr.sNotes")}</div>
       {notes.length === 0 ? (
         <p className="wr-sum">{t("wr.noNotes")}</p>
       ) : (
@@ -254,8 +256,9 @@ export function WeeklyReview({ books, notify, onOpenNote }: { books: Map<string,
           )}
         </>
       )}
-
-      <div className="wr-sec">{t("wr.sTasks")}</div>
+      </section>
+      <section className="wr-card">
+        <div className="wr-sec">{t("wr.sTasks")}</div>
       <div className="wr-grid">
         <div className="kpis">
           <div>
@@ -295,8 +298,9 @@ export function WeeklyReview({ books, notify, onOpenNote }: { books: Map<string,
           )}
         </div>
       </div>
-
-      <div className="wr-sec">{t("wr.sWrite")}</div>
+      </section>
+      <section className="wr-card">
+        <div className="wr-sec">{t("wr.sWrite")}</div>
       {[t("wr.q1"), t("wr.q2"), t("wr.q3")].map((q, i) => (
         <label key={i} className="wr-ask">
           {q}
@@ -309,8 +313,9 @@ export function WeeklyReview({ books, notify, onOpenNote }: { books: Map<string,
         </button>
         <span>{saved ? t("wr.saved") : t("wr.hint", { tag: weekTag() })}</span>
       </div>
-
-      <div className="wr-sec">{t("wr.sPast")}</div>
+      </section>
+      <section className="wr-card">
+        <div className="wr-sec">{t("wr.sPast")}</div>
       {past.length === 0 ? (
         <p className="wr-sum">{t("wr.pastEmpty")}</p>
       ) : (
@@ -323,6 +328,7 @@ export function WeeklyReview({ books, notify, onOpenNote }: { books: Map<string,
           ))}
         </div>
       )}
+      </section>
     </div>
   );
 }
