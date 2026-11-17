@@ -8,7 +8,6 @@ import { notesStore, useNotesVersion, type NoteHit } from "../notes/store";
 import { makeLink } from "../notes/links";
 import { parseTags, stripTags } from "../notes/tags";
 import { addDays, isoWeekOf, planOf, todayStr } from "../tasks/date";
-import { createTask } from "../tasks/actions";
 import { goalsIn, paceOf, progressOfGoal, supportMap } from "../tasks/goals";
 import { isOverdue } from "../tasks/query";
 import { useGoals } from "../tasks/useGoals";
@@ -149,11 +148,10 @@ export function WeeklyReview({ books, notify, onOpenNote }: { books: Map<string,
       rememberWeekTag(weekTag());
       await notesStore.add(FREE_BOOK, a);
       if (worth[0]) await notesStore.putLinks([makeLink(a.id, worth[0].note.id, t("wr.linkLabel"))]);
-      if (a3) await createTask({ title: a3.split("\n")[0], plan: planOf("week", addDays(start, 7)) });
       setFlag(doneKey(start));
       setSaved(true);
       setAns(["", "", ""]);
-      notify(a3 ? t("wr.savedNext") : t("wr.saved"));
+      notify(t("wr.saved"));
     } catch (e) {
       notify(String(e));
     }
