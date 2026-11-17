@@ -577,4 +577,96 @@ mod tests {
         assert_eq!(n, 1, "the notes stay");
         assert!(run(&a, &s, &make, &temp("off2"), 2).is_err());
     }
+    /// The single-device backup story: everything one device wrote comes back on an empty device that joins with the same password.
+    #[test]
+    fn an_empty_device_gets_everything_back_from_the_cloud() {
+        let mem = Memory::new();
+        let m = mem.clone();
+        let make = move |_: &str, _: &str, _: &str, _: &str| -> Result<Box<dyn Remote>, String> { Ok(Box::new(m.clone())) };
+        let (a, sa) = (db(), MemSecrets::default());
+        connect(&a, &sa, &make, &params("create", "pw"), FAST).unwrap();
+        put_note(&a, "n1", "第一条", 5_000);
+        put_note(&a, "n2", "第二条", 5_100);
+        {
+            let c = a.lock().unwrap();
+            c.execute("INSERT INTO goals(id, title, kind, created_at, updated_at) VALUES('g1', '读书', 'month', 1, 5000)", []).unwrap();
+            c.execute("INSERT INTO tasks(id, title, created_at, updated_at) VALUES('t1', '待办', 1, 5000)", []).unwrap();
+            c.execute("INSERT INTO task_goals(task_id, goal_id) VALUES('t1', 'g1')", []).unwrap();
+            c.execute("INSERT INTO note_links(id, a, b, label, created_at, updated_at) VALUES('l1', 'n1', 'n2', '相关', 1, 5000)", []).unwrap();
+            c.execute("INSERT INTO books(id, data, updated_at) VALUES('bk', '{\"id\":\"bk\",\"title\":\"书\",\"progress\":0.5,\"rating\":4}', 5000)", []).unwrap();
+            c.execute("INSERT INTO review_items(note_id, level, due, updated_at) VALUES('n1', 3, '2026-12-01', 5000)", []).unwrap();
+            c.execute("INSERT INTO tag_meta(tag, pinned, updated_at) VALUES('读书', 1, 5000)", []).unwrap();
+            c.execute("INSERT INTO goal_snaps(day, goal_id, percent, updated_at) VALUES('2026-11-08', 'g1', 30, 5000)", []).unwrap();
+            c.execute("INSERT INTO graph_pos(note_id, x, y, w, h, updated_at) VALUES('n1', 10, 20, 0, 0, 5000)", []).unwrap();
+            crate::reading::add(&c, "2026-11-14", "bk", 600, 0.2).unwrap();
+        }
+        run(&a, &sa, &make, &temp("restore-a"), 100_000).unwrap();
+
+        // a fresh install: empty database, no secrets, only the account and the sync password
+        let (b, sb) = (db(), MemSecrets::default());
+        connect(&b, &sb, &make, &params("join", "pw"), FAST).unwrap();
+        run(&b, &sb, &make, &temp("restore-b"), 200_000).unwrap();
+
+        let dump = |d: &Mutex<Connection>| -> Vec<String> {
+            let c = d.lock().unwrap();
+            let mut out = vec![];
+            for sql in [
+                "SELECT 'note', id || '|' || note || '|' || updated_at FROM notes",
+                "SELECT 'goal', id || '|' || title || '|' || kind FROM goals",
+                "SELECT 'task', id || '|' || title FROM tasks",
+                "SELECT 'task_goal', task_id || '|' || goal_id FROM task_goals",
+                "SELECT 'link', id || '|' || a || '|' || b || '|' || label FROM note_links",
+                "SELECT 'book', id FROM books",
+                "SELECT 'review', note_id || '|' || level || '|' || due FROM review_items",
+                "SELECT 'pin', tag || '|' || pinned FROM tag_meta",
+                "SELECT 'snap', day || '|' || goal_id || '|' || percent FROM goal_snaps",
+                "SELECT 'pos', note_id || '|' || x || '|' || y FROM graph_pos",
+                "SELECT 'read', day || '|' || book_id || '|' || sum(secs) FROM (SELECT day, book_id, secs FROM reading_days UNION ALL SELECT day, book_id, secs FROM reading_remote) GROUP BY day, book_id",
+            ] {
+                let mut st = c.prepare(sql).unwrap();
+                out.extend(st.query_map([], |r| Ok(format!("{}:{}", r.get::<_, String>(0)?, r.get::<_, String>(1)?))).unwrap().filter_map(Result::ok));
+            }
+            // a book's description is JSON: compare what it says, not the order of its keys
+            let mut st = c.prepare("SELECT data FROM books ORDER BY id").unwrap();
+            let datas: Vec<serde_json::Value> = st.query_map([], |r| r.get::<_, String>(0)).unwrap().filter_map(Result::ok).map(|d| serde_json::from_str(&d).unwrap()).collect();
+            out.push(format!("books:{}", serde_json::to_string(&datas).unwrap()));
+            out.sort();
+            out
+        };
+        let (da, db_) = (dump(&a), dump(&b));
+        assert!(da.len() >= 12, "the source holds something of every kind: {da:?}");
+        assert_eq!(da, db_, "the empty device ends up with the same data");
+    }
+
+    /// Against a real WebDAV account (nothing runs unless asked): back up on one device, restore on an empty one.
+    ///   PowerShell:  $env:DAV_USER="..."; $env:DAV_PASS="<application password>"; $env:DAV_SYNC_PW="<any test password>"
+    ///                cargo test --lib real_webdav_backup_and_restore -- --ignored --nocapture
+    /// Writes only under a folder called `我的坚果云/墨边-测试-<time>`; delete it afterwards. The account is read from the environment only.
+    #[test]
+    #[ignore]
+    fn real_webdav_backup_and_restore() {
+        let (user, pass) = (std::env::var("DAV_USER").expect("DAV_USER"), std::env::var("DAV_PASS").expect("DAV_PASS"));
+        let pw = std::env::var("DAV_SYNC_PW").unwrap_or_else(|_| "test-sync-password".into());
+        let url = std::env::var("DAV_URL").unwrap_or_else(|_| DEFAULT_URL.into());
+        let root = format!("我的坚果云/墨边-测试-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs());
+        println!("folder: {root}");
+        let make = web_dav();
+        let mk = |mode: &str| Connect { url: url.clone(), root: root.clone(), user: user.clone(), password: pass.clone(), sync_password: pw.clone(), mode: mode.into(), recovery: None, device_name: "test".into() };
+        let (a, sa) = (db(), MemSecrets::default());
+        connect(&a, &sa, &make, &mk("create"), FAST).unwrap();
+        for i in 0..20 {
+            put_note(&a, &format!("n{i}"), &format!("第 {i} 条"), 5_000 + i);
+        }
+        let t = std::time::Instant::now();
+        let r = run(&a, &sa, &make, &temp("real-a"), 100_000).unwrap();
+        println!("device A synced in {:?}: {r:?}", t.elapsed());
+        let (b, sb) = (db(), MemSecrets::default());
+        connect(&b, &sb, &make, &mk("join"), FAST).unwrap();
+        let t = std::time::Instant::now();
+        run(&b, &sb, &make, &temp("real-b"), 200_000).unwrap();
+        println!("empty device restored in {:?}", t.elapsed());
+        let n: i64 = b.lock().unwrap().query_row("SELECT count(*) FROM notes", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 20, "all notes came back from the real server");
+    }
+
 }
