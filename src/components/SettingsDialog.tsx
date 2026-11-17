@@ -1,6 +1,7 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { DatabaseBackup, FileText, FolderOpen, Info, Keyboard, Mail, Palette, SlidersHorizontal, Tag, X } from "lucide-react";
 import type { BookRecord } from "../core/types";
+import { BIBLE_MODULE_ID } from "../modules/bible/ids";
 import type { Settings } from "../settings";
 import { appVersion, backupApi, confirmDialog, isTauri, openExternal, type BackupStatus } from "../platform";
 import { runMdBackup } from "../notes/backup";
@@ -416,18 +417,43 @@ function ReadingPane({ s, onChange, notify }: { s: Settings; onChange(p: Partial
 }
 
 /** Modules built into this edition, each switched on or off. Shows nothing when the build has none. */
+const UNLOCK = "reader:modules-unlocked";
+/** Modules kept out of sight until the plugin area is clicked five times in a row (an enabled one always shows). */
+const HIDDEN_MODULES = new Set([BIBLE_MODULE_ID]);
+const unlocked = (): boolean => {
+  try {
+    return localStorage.getItem(UNLOCK) === "1";
+  } catch {
+    return false;
+  }
+};
+
 function ModulesPane({ s, onChange }: { s: Settings; onChange(p: Partial<Settings>): void }) {
   useRegistry();
-  const list = knownModules();
-  if (!list.length) return null;
+  const [open, setOpen] = useState(unlocked);
+  const taps = useRef({ n: 0, at: 0 });
+  const tap = (e: React.MouseEvent) => {
+    if (open || (e.target as HTMLElement).closest("label,input,button,a")) return;
+    const now = Date.now();
+    taps.current = { n: now - taps.current.at < 1500 ? taps.current.n + 1 : 1, at: now };
+    if (taps.current.n >= 5) {
+      setOpen(true);
+      try {
+        localStorage.setItem(UNLOCK, "1");
+      } catch {
+        /* storage unavailable: shown until the dialog closes */
+      }
+    }
+  };
   const on = new Set(s.modules ?? []);
+  const list = knownModules().filter((m) => open || !HIDDEN_MODULES.has(m.id) || on.has(m.id));
   const flip = (id: string, v: boolean) => {
     if (v) on.add(id);
     else on.delete(id);
     onChange({ modules: [...on] });
   };
   return (
-    <div className="panel settings-panel">
+    <div className="panel settings-panel" onClick={tap}>
       <div className="panel-title">{t("mod.title")}</div>
       <div className="settings-body">
         <p className="settings-hint">{t("mod.hint")}</p>
