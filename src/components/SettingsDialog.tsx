@@ -47,7 +47,8 @@ export function SettingsDialog({ settings, books, onChange, onClose, notify, ini
           <X size={18} />
         </button>
         <h2>{t("settings.title")}</h2>
-        <div className="segmented settings-tabs">
+        <div className="settings-shell">
+        <nav className="settings-tabs" aria-label={t("settings.title")}>
           <button className={tab === "look" ? "on" : ""} onClick={() => setTab("look")}>
             <Palette size={14} /> {t("settings.tab.look")}
           </button>
@@ -63,7 +64,7 @@ export function SettingsDialog({ settings, books, onChange, onClose, notify, ini
           <button className={tab === "about" ? "on" : ""} onClick={() => setTab("about")}>
             <Info size={14} /> {t("settings.tab.about")}
           </button>
-        </div>
+        </nav>
         <div className={`settings-pane ${tab === "general" || tab === "backup" ? "cards" : ""}`}>
           {tab === "look" && <LangPane s={settings} onChange={onChange} />}
           {tab === "look" && <SettingsPanel s={settings} onChange={onChange} isPdf={false} canZoom={isTauri} libZoom />}
@@ -76,6 +77,7 @@ export function SettingsDialog({ settings, books, onChange, onClose, notify, ini
           {tab === "keys" && <KeysPane s={settings} onChange={onChange} />}
           {tab === "backup" && <BackupPane books={books} notify={notify} />}
           {tab === "about" && <AboutPane />}
+        </div>
         </div>
       </div>
     </div>
