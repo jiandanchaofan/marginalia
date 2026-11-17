@@ -8958,3 +8958,7 @@ nav.settings-tabs button.on { background: var(--soft); color: var(--text); font-
 .settings-pane.cards .plugin-item > .sy-locked { margin-left: 0; align-self: stretch; padding-top: 8px; border-top: 1px dashed var(--line); }
 .settings-pane.cards .plugin-item .dict-set { margin: 0; }
 .settings-pane.cards .plugin-item > .sy-locked { border-top: 0; padding-top: 0; }
+
+/* Settings -> Plugins: the list needs no outer frame, each plugin already has its own */
+.settings-pane.cards .panel.plugins-panel { border: 0; background: transparent; padding: 0; }
+.settings-pane.cards .plugins-panel .panel-title { border-bottom: 0; padding-bottom: 0; margin-bottom: 6px; }

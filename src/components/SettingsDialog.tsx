@@ -455,7 +455,7 @@ function ModulesPane({ s, onChange, notify }: { s: Settings; onChange(p: Partial
     onChange({ modules: [...on] });
   };
   return (
-    <div className="panel settings-panel" onClick={tap}>
+    <div className="panel settings-panel plugins-panel" onClick={tap}>
       <div className="panel-title">{t("mod.title")}</div>
       <div className="settings-body">
         <p className="settings-hint">{t("mod.hint")}</p>
