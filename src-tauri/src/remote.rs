@@ -2,7 +2,9 @@
 //! [`WebDav`] does them over WebDAV (made for 坚果云, see docs/cloud-sync-plan.md); [`Memory`] is an in-memory stand-in for tests,
 //! which can also be made to fail part-way, to see what a sync does when the connection drops.
 
-use std::collections::{BTreeMap, HashSet};
+#[cfg(test)]
+use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -38,11 +40,13 @@ pub trait Remote {
 
 // ---------------------------------------------------------------- in memory
 
-/// A server in memory. Cloning shares the same files, like two devices talking to one server.
+/// A server in memory (tests). Cloning shares the same files, like two devices talking to one server.
+#[cfg(test)]
 #[derive(Clone, Default)]
 pub struct Memory {
     inner: std::sync::Arc<Mutex<MemInner>>,
 }
+#[cfg(test)]
 #[derive(Default)]
 struct MemInner {
     files: BTreeMap<String, Vec<u8>>,
@@ -52,6 +56,7 @@ struct MemInner {
     gets: usize,
     bytes_up: usize,
 }
+#[cfg(test)]
 impl Memory {
     pub fn new() -> Memory {
         Memory::default()
@@ -73,6 +78,7 @@ impl Memory {
         }
     }
 }
+#[cfg(test)]
 impl Remote for Memory {
     fn get(&self, path: &str) -> Result<Option<Vec<u8>>, RemoteError> {
         let mut i = self.inner.lock().unwrap();

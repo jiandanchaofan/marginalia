@@ -11,6 +11,7 @@ use crate::syncer::{self, Options, SyncError, SyncReport};
 use base64::Engine;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -57,8 +58,10 @@ impl Secrets for SystemSecrets {
 }
 
 /// In memory, for tests.
+#[cfg(test)]
 #[derive(Default)]
 pub struct MemSecrets(Mutex<HashMap<String, String>>);
+#[cfg(test)]
 impl Secrets for MemSecrets {
     fn get(&self, name: &str) -> Option<String> {
         self.0.lock().unwrap().get(name).cloned()

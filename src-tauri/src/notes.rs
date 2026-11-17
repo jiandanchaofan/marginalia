@@ -320,6 +320,7 @@ fn rewrite_tags(text: &str, from: &str, to: Option<&str>) -> String {
 // ---------------------------------------------------------------- model
 
 /// Sentinel `book_id` of free-standing notes ("随手记"), which belong to no book or article.
+#[cfg(test)]
 pub const FREE_BOOK: &str = "_memo";
 
 /// "passage" = anchored to selected text; "doc" = about the whole book / article (no anchor);

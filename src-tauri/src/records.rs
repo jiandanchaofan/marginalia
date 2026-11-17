@@ -6,7 +6,7 @@
 //! exchange changes in any order end up with the same data. A note edited on two devices since they last met keeps the losing
 //! version as a "conflict copy" in the recycle bin, so nothing is silently lost.
 //!
-//! Not in here yet: reading time (to be added up, not overwritten), goal-progress snapshots and the relation graph's card positions.
+//! Reading time is added up across devices (not overwritten); goal-progress snapshots and the relation graph's card positions follow the newest write.
 
 use crate::notes::{self, Link, Note};
 use crate::sync::Tombstone;
@@ -209,6 +209,7 @@ fn remember(tx: &Connection, kind: &str, id: &str, stamp: i64) -> rusqlite::Resu
     Ok(())
 }
 
+#[cfg(test)]
 pub fn make_change(conn: &Connection, device: &str, seq: u64, since: i64) -> rusqlite::Result<Change> {
     let (items, tombstones) = export_since(conn, since)?;
     let created_at: i64 = conn.query_row(&format!("SELECT {NOW}"), [], |r| r.get(0))?;

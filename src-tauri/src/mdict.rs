@@ -49,6 +49,8 @@ impl Enc {
     }
 }
 
+/// What the file's header says; not every field is used yet, they are kept as the format has them.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Header {
     pub title: String,
@@ -92,6 +94,7 @@ struct Hit {
 }
 
 pub struct Mdict {
+    #[allow(dead_code)]
     pub path: PathBuf,
     pub header: Header,
     pub entries: u64,
@@ -160,11 +163,7 @@ fn unpack(raw: &[u8], decomp: u64, decrypt: bool) -> Result<Vec<u8>, String> {
     match kind {
         0 => Ok(data),
         1 => {
-            let mut out = vec![0u8; decomp as usize];
-            lzokay_native::decompress_all(&data, Some(decomp as usize)).map(|v| {
-                out = v;
-                out
-            }).map_err(|e| format!("词典的 LZO 数据块解压失败：{e:?}"))
+            lzokay_native::decompress_all(&data, Some(decomp as usize)).map_err(|e| format!("词典的 LZO 数据块解压失败：{e:?}"))
         }
         2 => {
             let mut out = Vec::with_capacity(decomp as usize);
@@ -259,7 +258,7 @@ impl Mdict {
         let mut at = pos + kh_len as u64 + info_size;
         for _ in 0..key_blocks {
             let n = ic.num(wide)?;
-            let mut text = |ic: &mut Cur| -> Result<String, String> {
+            let text = |ic: &mut Cur| -> Result<String, String> {
                 let len = if wide { be(ic.take(2)?) } else { be(ic.take(1)?) } as usize;
                 // sizes count characters; UTF-8 headwords are counted in bytes, UTF-16 in 2-byte units
                 let bytes = ic.take(len * unit)?.to_vec();
@@ -530,6 +529,7 @@ impl Mdict {
     }
 
     /// The first few headwords in file order (what is inside, for a glance).
+    #[cfg(test)]
     pub fn sample(&self, n: usize) -> Result<Vec<String>, String> {
         let mut out = Vec::new();
         for i in 0..self.keys.len().min(3) {
