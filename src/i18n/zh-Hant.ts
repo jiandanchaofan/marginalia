@@ -1316,6 +1316,8 @@ export const zhHant: Record<Key, string> & Record<string, string> = {
   "dict.set.info": "{n} 個詞條 · {r} 個資源檔",
   "dict.set.empty": "尚未加入辭典。",
   "dict.set.hint": "辭典檔只記路徑，不複製，也不上傳。",
+  "dict.set.tag": "摘錄到筆記的標籤",
+  "dict.set.tagHint": "在辭典框裡點「摘錄到筆記」時，筆記會帶這個標籤；可寫成 學習/詞彙 這樣的多級標籤，留空則不加標籤。",
   "pal.makeNote": "把「{q}」記成一則隨手記",
   "pal.tagMeta": "{n} 則筆記",
   "pal.bookMeta": "讀到 {pct}%",

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
 import { t } from "../i18n";
-import { dictApi, dictOn, pickDictionary, setDictOn, type DictInfo } from "./api";
+import { dictApi, dictOn, dictTag, pickDictionary, setDictOn, setDictTag, type DictInfo } from "./api";
 
 /** The dictionary plugin in Settings → Plugins: off by default; when on, load / order / switch off dictionaries. */
 export function DictSettings() {
@@ -61,9 +61,41 @@ export function DictSettings() {
             <Plus size={14} /> {t("dict.add")}
           </button>
           <p className="settings-hint">{t("dict.set.hint")}</p>
+          <TagField />
           {err && <p className="sy-err">{err}</p>}
         </div>
       )}
     </>
+  );
+}
+
+/** The tag put on notes saved from the card: typed with or without #, saved when the box is left or Enter is pressed. */
+function TagField() {
+  const def = t("dict.tag");
+  const [text, setText] = useState(dictTag() ?? def);
+  const commit = () => {
+    setDictTag(text);
+    setText(dictTag() ?? def);
+  };
+  return (
+    <div className="dict-tagrow">
+      <span>{t("dict.set.tag")}</span>
+      <div className="week-tag">
+        <span>#</span>
+        <input value={text} onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && (e.currentTarget.blur(), e.preventDefault())} placeholder={def} spellCheck={false} aria-label={t("dict.set.tag")} />
+        {text !== def && (
+          <button
+            className="zoom-reset"
+            onClick={() => {
+              setDictTag(null);
+              setText(def);
+            }}
+          >
+            {t("common.reset")}
+          </button>
+        )}
+      </div>
+      <p className="settings-hint">{t("dict.set.tagHint")}</p>
+    </div>
   );
 }

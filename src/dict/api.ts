@@ -93,6 +93,26 @@ export const looksLikeWord = (s: string) => {
   return /^[A-Za-z][A-Za-z'\u2019 -]{0,40}$/.test(t) || /^[\u3400-\u9fff]{1,12}$/.test(t);
 };
 
+const TAG = "reader:dict-tag";
+/** The tag the card puts on a note it saves (typed without #; may be nested like a/b). Empty string = no tag; null = the default. */
+export const dictTag = (): string | null => {
+  try {
+    const v = localStorage.getItem(TAG);
+    return v === null ? null : v;
+  } catch {
+    return null;
+  }
+};
+/** Remember the tag (any spaces dropped, a leading # ignored); null goes back to the default. */
+export const setDictTag = (tag: string | null) => {
+  try {
+    if (tag === null) localStorage.removeItem(TAG);
+    else localStorage.setItem(TAG, tag.replace(/^#+/, "").replace(/\s+/g, "").split("/").filter(Boolean).join("/"));
+  } catch {
+    /* storage unavailable */
+  }
+};
+
 const HISTORY = "reader:dict-history";
 const HISTORY_MAX = 30;
 /** The words looked up lately (newest first). */

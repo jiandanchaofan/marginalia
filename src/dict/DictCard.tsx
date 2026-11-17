@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Library, NotebookPen, Search, X } from "lucide-react";
 import { t } from "../i18n";
-import { dictApi, dictAvailable, clearLookupHistory, lookupHistory, rememberLookup, shortDefinition, type DictFound, type DictInfo, type LookupContext } from "./api";
+import { dictApi, dictAvailable, clearLookupHistory, dictTag, lookupHistory, rememberLookup, shortDefinition, type DictFound, type DictInfo, type LookupContext } from "./api";
 import { DOC_ANCHOR, FREE_BOOK, type Annotation } from "../core/types";
 import { notesStore } from "../notes/store";
 import { parseTags } from "../notes/tags";
@@ -129,7 +129,8 @@ export function DictHost() {
     if (!cur || saved) return;
     const word = found?.resolved || found?.query || cur.headword;
     const def = shortDefinition(cur.body, cur.headword);
-    const note = `#${t("dict.tag")} ${word}${def ? `\uff1a${def}` : ""}`;
+    const tag = dictTag() ?? t("dict.tag");
+    const note = `${tag ? `#${tag} ` : ""}${word}${def ? `\uff1a${def}` : ""}`;
     if (ctx.current.excerpt) ctx.current.excerpt(note);
     else {
       const now = Date.now();

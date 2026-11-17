@@ -1320,6 +1320,8 @@ export const zhHans = {
   "dict.set.info": "{n} 个词条 · {r} 个资源文件",
   "dict.set.empty": "还没有词典。",
   "dict.set.hint": "词典文件只记路径，不复制，也不上传。",
+  "dict.set.tag": "摘录到笔记的标签",
+  "dict.set.tagHint": "在词典框里点“摘录到笔记”时，笔记会带这个标签；可写成 学习/词汇 这样的多级标签，留空则不加标签。",
   "pal.makeNote": "把“{q}”记成一条随手记",
   "pal.tagMeta": "{n} 条笔记",
   "pal.bookMeta": "读到 {pct}%",

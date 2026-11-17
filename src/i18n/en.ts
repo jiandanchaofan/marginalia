@@ -1335,6 +1335,8 @@ export const en: Record<Key, string> & Record<string, string> = {
   "dict.set.info": "{n} entries · {r} resource files",
   "dict.set.empty": "No dictionaries yet.",
   "dict.set.hint": "Only the file's path is kept: nothing is copied or uploaded.",
+  "dict.set.tag": "Tag for saved words",
+  "dict.set.tagHint": "Notes saved with the card's “Save to notes” button get this tag; a nested tag such as study/vocabulary works, and leaving it empty adds no tag.",
   "pal.makeNote": "Save “{q}” as a quick note",
   "pal.tagMeta": "{n} notes",
   "pal.bookMeta": "{pct}% read",

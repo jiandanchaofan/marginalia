@@ -142,3 +142,6 @@
 .dict-recent button:hover { background: var(--soft); }
 .dict-recent button.clear { border: 0; color: var(--muted); text-decoration: underline; padding: 1px 4px; }
 .dict-head .icon-btn:disabled { opacity: 1; cursor: default; }
+
+.dict-tagrow { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; margin-top: 6px; font-size: 13px; color: var(--text-2); }
+.dict-tagrow .week-tag { width: min(100%, 300px); }
