@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Archive, CalendarCheck, Target, AlertCircle, Calendar, CalendarDays, CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, Flag, Hash, Inbox, ListTodo, Plus, Search, SlidersHorizontal, Sun, Trash2, X } from "lucide-react";
+import { Archive, CalendarCheck, Grid2x2, Target, AlertCircle, Calendar, CalendarDays, CalendarRange, CheckCircle2, ChevronLeft, ChevronRight, Flag, Hash, Inbox, ListTodo, Plus, Search, SlidersHorizontal, Sun, Trash2, X } from "lucide-react";
 import { isFreeNote, type BookRecord, type Task } from "../core/types";
 import type { NoteHit } from "../notes/store";
 import { buildTree, type TagNode } from "../notes/tags";
@@ -19,6 +19,9 @@ import { TopicBar } from "./TopicBar";
 import { TagSuggestInput } from "./TagSuggestInput";
 import { TASK_DROP_EVENT, type TaskDrop } from "../tasks/taskDrag";
 import { ArchivePage, MonthPage, YearPage } from "./GoalPages";
+import { MatrixPage } from "./MatrixPage";
+import { loadCfg, moveFields } from "../tasks/matrix";
+import { toast } from "../trash/ui";
 import { useGoals } from "../tasks/useGoals";
 import { goalsOfMap, supportMap } from "../tasks/goals";
 import { linkTasks, setTaskGoals } from "../tasks/goalActions";
@@ -36,7 +39,7 @@ const ICONS: Record<ListKey, React.ReactNode> = {
   all: <ListTodo size={14} />,
   done: <CheckCircle2 size={14} />,
 };
-type View = "list" | "year" | "month" | "archive" | "weekly" | "trash";
+type View = "list" | "year" | "month" | "matrix" | "archive" | "weekly" | "trash";
 const LS = "reader:tasks-view";
 const loadView = (): { list: ListKey; sort: SortKey; group: GroupKey; view: View } => {
   try {
@@ -268,6 +271,7 @@ export function Tasks({ books, notify, onOpenNote }: Props) {
       else if (key === "today") await run(updateTask(t, { plan: planOf("day", today).raw })), notify(tr("tasks.drop.today"));
       else if (key === "week") await run(updateTask(t, { plan: planOf("week", today).raw })), notify(tr("tasks.drop.week"));
       else if (key === "done") await run(updateTask(t, { done: true })), notify(tr("tasks.drop.done"));
+      else if (key.startsWith("q:")) await moveInMatrix(t, key);
       else if (key.startsWith("goal:")) await linkTasks(key.slice(5), [t.id]), notify(tr("tasks.drop.goal", { title: goals.find((g) => g.id === key.slice(5))?.title ?? tr("tasks.drop.goalDefault") }));
       else if (key === "nogoal") await setTaskGoals(t.id, [], (goalsOf.get(t.id) ?? []).map((g) => g.id)), notify(tr("tasks.drop.nogoal"));
       else if (key.startsWith("tag:")) {
@@ -279,6 +283,17 @@ export function Tasks({ books, notify, onOpenNote }: Props) {
     } catch (e) {
       notify(tr("tasks.opFail", { err: String(e) }));
     }
+  };
+  /** Dropped into a box of the four-quadrant page: change the fields that put it there, and offer to undo. */
+  const moveInMatrix = async (t: Task, key: string) => {
+    const cfg = loadCfg();
+    const { fields, prev, parts } = moveFields(t, { important: key[2] === "i", urgent: key[3] === "U" }, today, cfg);
+    if (!parts.length) return notify(tr("mx.noChange"));
+    const err = await updateTask(t, fields);
+    if (err) return notify(err);
+    const what = parts.map((p) => tr(({ "pri-up": "mx.w.priUp", "pri-down": "mx.w.priDown", "plan-today": "mx.w.planToday", "clear-dates": "mx.w.clearDates" } as const)[p])).join(tr("mx.sep"));
+    const q = key === "q:iU" ? "mx.q1" : key === "q:iN" ? "mx.q2" : key === "q:nU" ? "mx.q3" : "mx.q4";
+    toast(tr("mx.moved", { q: tr(q), what }), { undo: () => void run(updateTask(t, prev)) });
   };
   // a todo was dropped (see tasks/taskDrag.ts) on a menu item, a tag, or a goal card
   const moveRef = useRef(moveTo);
@@ -305,6 +320,10 @@ export function Tasks({ books, notify, onOpenNote }: Props) {
           <Calendar size={15} />
           <span className="side-label">{tr("tasks.thisMonth")}</span>
           {goalCounts.month > 0 && <span className="tree-count">{goalCounts.month}</span>}
+        </button>
+        <button className={`side-item feature ${view === "matrix" ? "on" : ""}`} onClick={() => (setView("matrix"), setDrawer(false))} title={tr("mx.navTip")}>
+          <Grid2x2 size={15} />
+          <span className="side-label">{tr("mx.nav")}</span>
         </button>
       </div>
       <div className="side-section">
@@ -406,6 +425,7 @@ export function Tasks({ books, notify, onOpenNote }: Props) {
               {view === "trash" && <TrashPage kind="task" books={new Map()} />}
               {view === "weekly" && <WeeklyReview books={books} notify={notify} onOpenNote={onOpenNote} />}
               {view === "year" && <YearPage goals={goals} links={links} tasks={tasks} notify={notify} onToggleTask={(t, done) => update(t, { done })} onOpenTask={(t) => setSelectedId(t.id)} />}
+              {view === "matrix" && <MatrixPage tasks={tasks} goals={goals} links={links} selectedId={selectedId} onOpenTask={(t) => setSelectedId(t.id)} />}
               {view === "month" && <MonthPage goals={goals} links={links} tasks={tasks} notify={notify} onToggleTask={(t, done) => update(t, { done })} onOpenTask={(t) => setSelectedId(t.id)} />}
               {view === "archive" && <ArchivePage goals={goals} links={links} tasks={tasks} notify={notify} />}
             </div>

@@ -65,6 +65,7 @@ export function allCommands(desktop: boolean): Command[] {
     page("hub-topics", t("tpo.title"), "notes", { to: "hub", mode: "topics" }, "topics tags 主题 主題"),
 
     page("tasks-month", t("tasks.thisMonth"), "tasks", { to: "tasks", view: "month" }, "month goals"),
+    page("tasks-matrix", t("mx.nav"), "tasks", { to: "tasks", view: "matrix" }, "matrix quadrant eisenhower 四象限 重要 紧急"),
     page("tasks-year", t("tasks.yearGoals"), "tasks", { to: "tasks", view: "year" }, "year goals"),
     page("tasks-archive", t("tasks.archive"), "tasks", { to: "tasks", view: "archive" }, "archive"),
     list("list-inbox", "list.inbox", "inbox"),

@@ -8,7 +8,7 @@ export type Intent =
   | { to: "hub"; mode: "all" | "graph" | "free" | "books" | "articles" | "review" | "topics" | "trash" }
   | { to: "topic"; tag: string }
   | { to: "find"; q: string }
-  | { to: "tasks"; view: "list" | "year" | "month" | "archive" | "weekly" | "trash"; list?: ListKey | "nogoal" };
+  | { to: "tasks"; view: "list" | "year" | "month" | "matrix" | "archive" | "weekly" | "trash"; list?: ListKey | "nogoal" };
 
 export const INTENT_EVENT = "reader:intent";
 type Holder = { __intent?: Intent };
