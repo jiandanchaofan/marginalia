@@ -1,5 +1,5 @@
 import { DictHost } from "./dict/DictCard";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { isFreeNote, type BookRecord } from "./core/types";
 import { formatOf } from "./core/formats";
 import { openBook as openBookDoc } from "./openBook";
@@ -31,10 +31,10 @@ import {
 } from "./platform";
 import { DEFAULT_SETTINGS, autoZoomFor, bodyFont, normalizeSettings, type Settings, themeClass, rememberTheme, otherTheme } from "./settings";
 import { Library } from "./components/Library";
-import { Reader } from "./components/Reader";
+const Reader = lazy(() => import("./components/Reader").then((m) => ({ default: m.Reader })));
 import { notesStore, useNotesVersion, type NoteHit } from "./notes/store";
-import { ClipDialog } from "./components/ClipDialog";
-import { SettingsDialog } from "./components/SettingsDialog";
+const ClipDialog = lazy(() => import("./components/ClipDialog").then((m) => ({ default: m.ClipDialog })));
+const SettingsDialog = lazy(() => import("./components/SettingsDialog").then((m) => ({ default: m.SettingsDialog })));
 import { scheduleMdBackup } from "./notes/backup";
 import { useZoomControls } from "./useZoom";
 import { clipArticle, looksLikeUrl, type ClipResult } from "./web/clip";
@@ -582,6 +582,7 @@ export default function App() {
   return (
     <>
       {openBook ? (
+        <Suspense fallback={null}>
         <Reader
           key={`${openBook.id}:${virtualRev}`}
           book={openBook}
@@ -598,6 +599,7 @@ export default function App() {
           }}
           onError={notify}
         />
+        </Suspense>
       ) : (
         <Library
           books={books}
@@ -660,8 +662,10 @@ export default function App() {
         notify={notify}
         shortcuts={settings.shortcuts}
       />
+      <Suspense fallback={null}>
       {clip && <ClipDialog initialUrl={clip.url} autoStart={clip.auto} onDone={finishClip} onClose={() => setClip(null)} />}
       {showSettings && <SettingsDialog key={settingsTab ?? "default"} initialTab={settingsTab} settings={settings} books={books} onChange={updateSettings} onClose={() => setShowSettings(false)} notify={notify} />}
+      </Suspense>
       {libZoomHint && !reading && <div className="zoom-hint lib">{Math.round(settings.libZoom * 100)}%</div>}
       {toast && <div className="toast">{toast}</div>}
     </>
