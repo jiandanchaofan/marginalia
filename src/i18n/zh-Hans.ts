@@ -752,6 +752,7 @@ export const zhHans = {
   "mx.moved": "已移到“{q}”：{what}",
   "mx.w.priUp": "优先级设为高",
   "mx.w.priDown": "优先级调低",
+  "mx.w.planIn": "安排在 {n} 天后",
   "mx.w.planToday": "安排在今天",
   "mx.w.clearDates": "清除近期的日期",
   "mx.sep": "，",

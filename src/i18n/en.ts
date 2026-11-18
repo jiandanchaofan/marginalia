@@ -757,6 +757,7 @@ export const en: Record<Key, string> & Record<string, string> = {
   "mx.moved": "Moved to “{q}”: {what}",
   "mx.w.priUp": "priority set to high",
   "mx.w.priDown": "priority lowered",
+  "mx.w.planIn": "planned {n} days ahead",
   "mx.w.planToday": "planned for today",
   "mx.w.clearDates": "near dates cleared",
   "mx.sep": ", ",

@@ -748,6 +748,7 @@ export const zhHant: Record<Key, string> & Record<string, string> = {
   "mx.moved": "已移到「{q}」：{what}",
   "mx.w.priUp": "優先級設為高",
   "mx.w.priDown": "優先級調低",
+  "mx.w.planIn": "安排在 {n} 天後",
   "mx.w.planToday": "安排在今天",
   "mx.w.clearDates": "清除近期的日期",
   "mx.sep": "，",

@@ -287,11 +287,11 @@ export function Tasks({ books, notify, onOpenNote }: Props) {
   /** Dropped into a box of the four-quadrant page: change the fields that put it there, and offer to undo. */
   const moveInMatrix = async (t: Task, key: string) => {
     const cfg = loadCfg();
-    const { fields, prev, parts } = moveFields(t, { important: key[2] === "i", urgent: key[3] === "U" }, today, cfg);
+    const { fields, prev, parts, planDays } = moveFields(t, { important: key[2] === "i", urgent: key[3] === "U" }, today, cfg);
     if (!parts.length) return notify(tr("mx.noChange"));
     const err = await updateTask(t, fields);
     if (err) return notify(err);
-    const what = parts.map((p) => tr(({ "pri-up": "mx.w.priUp", "pri-down": "mx.w.priDown", "plan-today": "mx.w.planToday", "clear-dates": "mx.w.clearDates" } as const)[p])).join(tr("mx.sep"));
+    const what = parts.map((p) => tr(({ "pri-up": "mx.w.priUp", "pri-down": "mx.w.priDown", "plan-today": "mx.w.planToday", "plan-in": "mx.w.planIn", "clear-dates": "mx.w.clearDates" } as const)[p], { n: planDays })).join(tr("mx.sep"));
     const q = key === "q:iU" ? "mx.q1" : key === "q:iN" ? "mx.q2" : key === "q:nU" ? "mx.q3" : "mx.q4";
     toast(tr("mx.moved", { q: tr(q), what }), { undo: () => void run(updateTask(t, prev)) });
   };

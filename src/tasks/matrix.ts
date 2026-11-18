@@ -7,7 +7,7 @@
  */
 import type { Task } from "../core/types";
 import type { Fields } from "./actions";
-import { daysBetween, planOf } from "./date";
+import { addDays, daysBetween, planOf } from "./date";
 
 export interface MatrixCfg {
   /** Within this many days (or past) = urgent. */
@@ -76,10 +76,12 @@ export function statusOf(t: Task, today: string): { tone: Tone; key: "mx.done" |
  * (to make it urgent), or taking away the dates that fall inside the urgent window (to make it not urgent).
  * `prev` holds the old values of the same fields, to undo it.
  */
-export function moveFields(t: Task, to: Quadrant, today: string, c: MatrixCfg): { fields: Fields; prev: Fields; parts: ("pri-up" | "pri-down" | "plan-today" | "clear-dates")[] } {
+export function moveFields(t: Task, to: Quadrant, today: string, c: MatrixCfg): { fields: Fields; prev: Fields; parts: ("pri-up" | "pri-down" | "plan-today" | "plan-in" | "clear-dates")[]; planDays: number } {
   const fields: Fields = {};
   const prev: Fields = {};
-  const parts: ("pri-up" | "pri-down" | "plan-today" | "clear-dates")[] = [];
+  const parts: ("pri-up" | "pri-down" | "plan-today" | "plan-in" | "clear-dates")[] = [];
+  /** Made urgent by planning it a few days ahead: 3 days, or less when the urgent line is shorter. */
+  const planDays = Math.min(3, c.urgentDays);
   const nowImportant = isImportant(t, c);
   if (to.important && !nowImportant) {
     fields.priority = 3;
@@ -92,9 +94,9 @@ export function moveFields(t: Task, to: Quadrant, today: string, c: MatrixCfg): 
   }
   const nowUrgent = isUrgent(t, today, c);
   if (to.urgent && !nowUrgent) {
-    fields.plan = planOf("day", today).raw;
+    fields.plan = planOf("day", addDays(today, planDays)).raw;
     prev.plan = t.plan;
-    parts.push("plan-today");
+    parts.push(planDays === 0 ? "plan-today" : "plan-in");
   } else if (!to.urgent && nowUrgent) {
     const within = (day: string) => !!day && daysBetween(today, day) <= c.urgentDays;
     if (t.planKind && within(t.planEnd)) {
@@ -107,5 +109,5 @@ export function moveFields(t: Task, to: Quadrant, today: string, c: MatrixCfg): 
     }
     parts.push("clear-dates");
   }
-  return { fields, prev, parts };
+  return { fields, prev, parts, planDays };
 }
