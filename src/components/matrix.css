@@ -6,7 +6,7 @@
 .mx-chip { cursor: pointer; }
 .mx-chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .mx-days { width: 52px; text-align: center; padding: 3px 4px; }
-.mx-sp { flex: 1; }
+.mx-break { flex-basis: 100%; height: 0; }
 .mx-stage { display: grid; grid-template-columns: 34px 1fr; grid-template-rows: 1fr 34px; gap: 6px; }
 .mx-ylab { writing-mode: vertical-rl; text-orientation: upright; color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
 .mx-xlab { grid-column: 2; color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; align-items: center; padding: 0 6px; }

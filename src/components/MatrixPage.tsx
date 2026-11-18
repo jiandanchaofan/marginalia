@@ -198,7 +198,7 @@ export function MatrixPage({ tasks, goals, links, selectedId, onOpenTask }: Prop
         <button className="mx-chip" aria-pressed={showDone} onClick={() => setShowDone((v) => !v)}>
           {tr("mx.showDone")}
         </button>
-        <span className="mx-sp" />
+        <span className="mx-break" />
         <label title={tr("mx.impTip")}>
           {tr("mx.impLine")}
           <select value={cfg.importantFrom} onChange={(e) => change({ importantFrom: e.target.value === "3" ? 3 : 2 })}>
