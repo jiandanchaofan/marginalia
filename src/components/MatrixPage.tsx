@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ArrowRight, ArrowUp } from "lucide-react";
 import type { Goal, Task } from "../core/types";
 import { isUnder } from "../notes/tags";
@@ -20,6 +20,23 @@ const loadRange = (): Range => {
     return "all";
   }
 };
+
+/** How the board is divided: by the number of tasks, or by hand (the share of the width the left column and of the height the top row take). */
+type Layout = { auto: true } | { auto: false; cx: number; ry: number };
+const LAYOUT = "reader:matrix-layout";
+const loadLayout = (): Layout => {
+  try {
+    const v = JSON.parse(localStorage.getItem(LAYOUT) ?? "null");
+    if (v && v.auto === false && Number.isFinite(v.cx) && Number.isFinite(v.ry)) return { auto: false, cx: clampShare(v.cx), ry: clampShare(v.ry) };
+  } catch {
+    /* ignore */
+  }
+  return { auto: true };
+};
+const MIN_SHARE = 0.18;
+const clampShare = (n: number) => Math.min(1 - MIN_SHARE, Math.max(MIN_SHARE, n));
+/** A box with more tasks gets more room, but an empty one stays big enough to drop a task into. */
+const autoShare = (a: number, b: number) => Math.min(0.75, Math.max(0.25, (a + 1.5) / (a + b + 3)));
 
 /** Quadrant order on screen: important on top, urgent on the right. The key is what a drop target carries (see Tasks.moveTo). */
 const CELLS: { key: string; important: boolean; urgent: boolean; name: Key; hint: Key }[] = [
@@ -44,6 +61,8 @@ export function MatrixPage({ tasks, goals, links, selectedId, onOpenTask }: Prop
   const [tag, setTag] = useState("");
   const [goal, setGoal] = useState("");
   const [showDone, setShowDone] = useState(false);
+  const [layout, setLayout] = useState<Layout>(loadLayout);
+  const boardRef = useRef<HTMLDivElement>(null);
   const [pop, setPop] = useState<{ t: Task; x: number; y: number } | null>(null);
   const goalsOf = useMemo(() => goalsOfMap(links, goals), [links, goals]);
   const tagList = useMemo(() => {
@@ -92,6 +111,45 @@ export function MatrixPage({ tasks, goals, links, selectedId, onOpenTask }: Prop
     return { ...c, list };
   });
 
+  // widths and heights of the boxes
+  const left = cells[0].list.length + cells[2].list.length;
+  const right = cells[1].list.length + cells[3].list.length;
+  const top = cells[0].list.length + cells[1].list.length;
+  const bottom = cells[2].list.length + cells[3].list.length;
+  const cx = layout.auto ? autoShare(left, right) : layout.cx;
+  const ry = layout.auto ? autoShare(top, bottom) : layout.ry;
+  const setManual = (next: { cx?: number; ry?: number }) => {
+    const l: Layout = { auto: false, cx: clampShare(next.cx ?? cx), ry: clampShare(next.ry ?? ry) };
+    setLayout(l);
+    try {
+      localStorage.setItem(LAYOUT, JSON.stringify(l));
+    } catch {
+      /* storage unavailable */
+    }
+  };
+  const setAuto = () => {
+    setLayout({ auto: true });
+    try {
+      localStorage.removeItem(LAYOUT);
+    } catch {
+      /* storage unavailable */
+    }
+  };
+  /** Drag a divider: `axis` x moves the vertical line, y the horizontal one, both the crossing. */
+  const dragDivider = (axis: "x" | "y" | "xy") => (e: React.PointerEvent) => {
+    const el = boardRef.current;
+    if (!el || e.button !== 0) return;
+    e.preventDefault();
+    const r = el.getBoundingClientRect();
+    const move = (ev: PointerEvent) => setManual({ ...(axis !== "y" ? { cx: (ev.clientX - r.left) / r.width } : {}), ...(axis !== "x" ? { ry: (ev.clientY - r.top) / r.height } : {}) });
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
   const status = (t: Task) => {
     const s = statusOf(t, today);
     return { tone: s.tone, text: tr(s.key, { n: s.n ?? 0 }) };
@@ -134,6 +192,9 @@ export function MatrixPage({ tasks, goals, links, selectedId, onOpenTask }: Prop
             ))}
           </select>
         </label>
+        <button className="mx-chip" aria-pressed={layout.auto} onClick={setAuto} title={tr("mx.autoTip")}>
+          {tr("mx.auto")}
+        </button>
         <button className="mx-chip" aria-pressed={showDone} onClick={() => setShowDone((v) => !v)}>
           {tr("mx.showDone")}
         </button>
@@ -169,7 +230,10 @@ export function MatrixPage({ tasks, goals, links, selectedId, onOpenTask }: Prop
           <b>{tr("mx.important")}<ArrowUp size={18} /></b>
           <span>{tr("mx.low")}</span>
         </div>
-        <div className="mx-board">
+        <div className="mx-board" ref={boardRef} style={{ "--c1": `${cx}fr`, "--c2": `${1 - cx}fr`, "--r1": `${ry}fr`, "--r2": `${1 - ry}fr`, "--cx": `${cx * 100}%`, "--ry": `${ry * 100}%` } as React.CSSProperties}>
+          <i className="mx-div v" onPointerDown={dragDivider("x")} onDoubleClick={setAuto} title={tr("mx.dividerTip")} />
+          <i className="mx-div h" onPointerDown={dragDivider("y")} onDoubleClick={setAuto} title={tr("mx.dividerTip")} />
+          <i className="mx-div c" onPointerDown={dragDivider("xy")} onDoubleClick={setAuto} title={tr("mx.dividerTip")} />
           {cells.map((c) => (
             <section key={c.key} className={`mx-q ${c.important ? "imp" : ""}`} data-drop={c.key}>
               <h3>
