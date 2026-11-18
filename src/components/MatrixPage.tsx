@@ -39,11 +39,11 @@ const clampShare = (n: number) => Math.min(1 - MIN_SHARE, Math.max(MIN_SHARE, n)
 const autoShare = (a: number, b: number) => Math.min(0.75, Math.max(0.25, (a + 1.5) / (a + b + 3)));
 
 /** Quadrant order on screen: important on top, urgent on the right. The key is what a drop target carries (see Tasks.moveTo). */
-const CELLS: { key: string; important: boolean; urgent: boolean; name: Key; hint: Key }[] = [
-  { key: "q:iN", important: true, urgent: false, name: "mx.q2", hint: "mx.q2h" },
-  { key: "q:iU", important: true, urgent: true, name: "mx.q1", hint: "mx.q1h" },
-  { key: "q:nN", important: false, urgent: false, name: "mx.q4", hint: "mx.q4h" },
-  { key: "q:nU", important: false, urgent: true, name: "mx.q3", hint: "mx.q3h" },
+const CELLS: { key: string; important: boolean; urgent: boolean; name: Key; hint: Key; tone: string }[] = [
+  { key: "q:iN", tone: "q2", important: true, urgent: false, name: "mx.q2", hint: "mx.q2h" },
+  { key: "q:iU", tone: "q1", important: true, urgent: true, name: "mx.q1", hint: "mx.q1h" },
+  { key: "q:nN", tone: "q4", important: false, urgent: false, name: "mx.q4", hint: "mx.q4h" },
+  { key: "q:nU", tone: "q3", important: false, urgent: true, name: "mx.q3", hint: "mx.q3h" },
 ];
 
 interface Props {
@@ -235,7 +235,7 @@ export function MatrixPage({ tasks, goals, links, selectedId, onOpenTask }: Prop
           <i className="mx-div h" onPointerDown={dragDivider("y")} onDoubleClick={setAuto} title={tr("mx.dividerTip")} />
           <i className="mx-div c" onPointerDown={dragDivider("xy")} onDoubleClick={setAuto} title={tr("mx.dividerTip")} />
           {cells.map((c) => (
-            <section key={c.key} className={`mx-q ${c.important ? "imp" : ""}`} data-drop={c.key}>
+            <section key={c.key} className={`mx-q ${c.tone}`} data-drop={c.key}>
               <h3>
                 {tr(c.name)}
                 <small>{tr(c.hint)}</small>
