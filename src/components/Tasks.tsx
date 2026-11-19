@@ -321,6 +321,8 @@ export function Tasks({ books, notify, onOpenNote }: Props) {
           <span className="side-label">{tr("tasks.thisMonth")}</span>
           {goalCounts.month > 0 && <span className="tree-count">{goalCounts.month}</span>}
         </button>
+      </div>
+      <div className="side-feature">
         <button className={`side-item feature ${view === "matrix" ? "on" : ""}`} onClick={() => (setView("matrix"), setDrawer(false))} title={tr("mx.navTip")}>
           <Grid2x2 size={15} />
           <span className="side-label">{tr("mx.nav")}</span>

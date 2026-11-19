@@ -84,6 +84,34 @@ export function TaskDetail({ task, kids, hit, sourceName, goals, goalIds, onGoal
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
   };
+  /** Docked at the right edge: if the page would run under the panel, pull the page's right edge left by the overlap (unless that leaves it too narrow). */
+  useEffect(() => {
+    if (pos) return;
+    const hub = document.querySelector<HTMLElement>(".tasks-hub");
+    if (!hub) return;
+    const reset = () => {
+      hub.style.width = "";
+      hub.style.marginLeft = "";
+    };
+    const fit = () => {
+      reset();
+      const w = box.current?.getBoundingClientRect().width ?? 360;
+      const target = window.innerWidth - 12 - w - 14;
+      const r = hub.getBoundingClientRect();
+      if (r.right <= target || target - r.left < 620) return;
+      /* keep the left edge where it is, cut the width so the right edge stops short of the panel */
+      const parent = hub.parentElement!;
+      const padL = parseFloat(getComputedStyle(parent).paddingLeft) || 0;
+      hub.style.marginLeft = `${r.left - parent.getBoundingClientRect().left - padL}px`;
+      hub.style.width = `${target - r.left}px`;
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => {
+      window.removeEventListener("resize", fit);
+      reset();
+    };
+  }, [pos]);
   const dock = () => {
     setPos(null);
     try {

@@ -8697,7 +8697,7 @@ body.task-dragging * {
 
 /* the 本月目标 entry: first in the sidebar and set apart from the lists below it */
 .side-feature {
-  margin-bottom: 14px;
+  margin-bottom: 8px;
   padding: 4px;
   border: 1px solid var(--line);
   border-radius: 12px;
