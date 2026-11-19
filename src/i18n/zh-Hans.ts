@@ -835,6 +835,7 @@ export const zhHans = {
   "td.doneAt": " · 完成于 {when}",
   "td.delete": "删除任务",
   "td.close": "关闭",
+  "td.dragTip": "拖动可移动；双击回到右侧",
 
   // plan picker
   "pp.title": "安排在",

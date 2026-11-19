@@ -35,7 +35,18 @@ interface Props {
   focusChild?: number;
 }
 
-/** The side panel of one task: every field, subtasks, and where it came from. */
+const POS_KEY = "reader:task-detail-pos";
+const loadPos = (): { x: number; y: number } | null => {
+  try {
+    const v = JSON.parse(localStorage.getItem(POS_KEY) ?? "null");
+    return v && Number.isFinite(v.x) && Number.isFinite(v.y) ? { x: v.x, y: v.y } : null;
+  } catch {
+    return null;
+  }
+};
+const clampPos = (x: number, y: number, w: number) => ({ x: Math.min(Math.max(0, x), Math.max(0, window.innerWidth - Math.min(w, 120))), y: Math.min(Math.max(0, y), Math.max(0, window.innerHeight - 60)) });
+
+/** The floating panel of one task: every field, subtasks, and where it came from. */
 export function TaskDetail({ task, kids, hit, sourceName, goals, goalIds, onGoals, onUpdate, onDelete, onAddChild, onSelect, onToggleChild, onOpenSource, onClose, focusChild = 0 }: Props) {
   const [title, setTitle] = useState(task.title);
   const [note, setNote] = useState(task.note);
@@ -43,6 +54,44 @@ export function TaskDetail({ task, kids, hit, sourceName, goals, goalIds, onGoal
   const [child, setChild] = useState("");
   const [picking, setPicking] = useState(false);
   const childBox = useRef<HTMLInputElement>(null);
+  const box = useRef<HTMLElement>(null);
+  /** Where the user dragged the panel to (null = docked at the right edge). */
+  const [pos, setPos] = useState(loadPos);
+  const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("button, input, label")) return;
+    const el = box.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const dx = e.clientX - r.left;
+    const dy = e.clientY - r.top;
+    
+    let last = { x: r.left, y: r.top };
+    const move = (m: PointerEvent) => {
+      last = clampPos(m.clientX - dx, m.clientY - dy, r.width);
+      setPos(last);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      try {
+        localStorage.setItem(POS_KEY, JSON.stringify(last));
+      } catch {
+        /* storage unavailable */
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+  const dock = () => {
+    setPos(null);
+    try {
+      localStorage.removeItem(POS_KEY);
+    } catch {
+      /* storage unavailable */
+    }
+  };
   useEffect(() => {
     if (focusChild) childBox.current?.focus();
   }, [focusChild]);
@@ -63,8 +112,8 @@ export function TaskDetail({ task, kids, hit, sourceName, goals, goalIds, onGoal
     if (t && !task.ownTags.includes(t)) onUpdate(task, { tags: [...task.ownTags, t] });
   };
   return (
-    <aside className="task-detail">
-      <div className="td-head">
+    <aside ref={box} className={`task-detail ${pos ? "moved" : ""}`} style={pos ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto", maxHeight: `calc(100vh - ${pos.y}px - 12px)` } : undefined}>
+      <div className="td-head" title={tr("td.dragTip")} onPointerDown={startDrag} onDoubleClick={(e) => !(e.target as HTMLElement).closest("button, input, label") && dock()}>
         <label className="td-done">
           <input type="checkbox" className={`task-box p${task.priority}`} checked={task.done} onChange={(e) => onUpdate(task, { done: e.target.checked })} />
           {task.done ? tr("td.done") : tr("td.doing")}

@@ -840,6 +840,7 @@ export const en: Record<Key, string> & Record<string, string> = {
   "td.doneAt": " · done {when}",
   "td.delete": "Delete task",
   "td.close": "Close",
+  "td.dragTip": "Drag to move; double-click to dock at the right edge",
 
   // plan picker
   "pp.title": "Plan for",

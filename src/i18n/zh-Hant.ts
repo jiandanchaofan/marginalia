@@ -831,6 +831,7 @@ export const zhHant: Record<Key, string> & Record<string, string> = {
   "td.doneAt": " · 完成於 {when}",
   "td.delete": "刪除任務",
   "td.close": "關閉",
+  "td.dragTip": "拖動可移動；雙擊回到右側",
 
   // plan picker
   "pp.title": "安排在",
