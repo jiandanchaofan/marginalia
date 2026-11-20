@@ -505,7 +505,9 @@ export default function App() {
       const win = getCurrentWindow();
       offs.push(
         await win.onCloseRequested(async (e) => {
-          if (anyCardOn()) {
+          // closing the window only hides it: the app stays in the tray (the tray's "Exit" quits); without a tray icon, close for real
+          const { TrayIcon } = await import("@tauri-apps/api/tray");
+          if (anyCardOn() || (await TrayIcon.getById("main"))) {
             e.preventDefault();
             await win.hide();
           }
