@@ -1,10 +1,12 @@
-import { forwardRef, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useDeferredValue, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Hash, X } from "lucide-react";
+import { Eye, EyeOff, Hash, X } from "lucide-react";
 import { parseTags, removeTag as stripTag, segments, suggestTags } from "../notes/tags";
 import { useAllTags } from "../notes/allTags";
 import { MAX_IMAGES, imagesIn, pickImageFiles, putImage } from "../notes/images";
 import { NoteImages } from "./NoteImages";
+import { NoteText } from "./NoteText";
+import { hasMath } from "../notes/format";
 import { applyFormat, continueList, indentTodo, type Edit, type FormatKind } from "../notes/edit";
 import { completeTodoWords } from "../tasks/parse";
 import { t, t as tr } from "../i18n";
@@ -113,6 +115,16 @@ export const TagTextarea = forwardRef<TagTextareaHandle, Props>(function TagText
   const [query, setQuery] = useState<string | null>(null); // text after '#' at the caret, null = closed
   const [index, setIndex] = useState(0);
   const [menuPos, setMenuPos] = useState<{ left: number; top: number } | null>(null);
+  // Live preview of the whole note (formatting, lists, todos, tags, formulas) under the box; collapsed unless the note has a formula.
+  const shown = useDeferredValue(value);
+  // A note with a formula opens the preview by itself; closing it by hand sticks for this editor until the text is cleared.
+  const math = useMemo(() => hasMath(shown), [shown]);
+  const [forced, setForced] = useState<boolean | null>(null);
+  useLayoutEffect(() => {
+    if (!value.trim()) setForced(null);
+  }, [value]);
+  const preview = forced ?? math;
+  const togglePreview = () => setForced(!preview);
 
   const grow = () => {
     const t = ta.current;
@@ -372,6 +384,17 @@ export const TagTextarea = forwardRef<TagTextareaHandle, Props>(function TagText
         }}
       />
       </div>
+      <div className="tt-preview-bar">
+        <button type="button" className={`tt-preview-btn ${preview ? "on" : ""}`} title={tr("tag.previewTip")} onMouseDown={(e) => e.preventDefault()} onClick={togglePreview}>
+          {preview ? <EyeOff size={12} /> : <Eye size={12} />}
+          {preview ? tr("tag.previewOff") : tr("tag.preview")}
+        </button>
+      </div>
+      {preview && shown.trim() && (
+        <div className="tt-preview" onMouseDown={(e) => e.preventDefault()}>
+          <NoteText className="note-text tt-preview-body" text={shown} />
+        </div>
+      )}
       {onImages && <NoteImages ids={images} onRemove={(id) => onImages((images ?? []).filter((x) => x !== id))} />}
       {found.length > 0 && (() => {
         const chips = (

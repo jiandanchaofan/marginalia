@@ -6,7 +6,7 @@
  */
 
 export type InlineKind = "b" | "i" | "u" | "s";
-export type Inline = { t: "text"; v: string } | { t: InlineKind; c: Inline[] };
+export type Inline = { t: "text"; v: string } | { t: "math"; v: string } | { t: InlineKind; c: Inline[] };
 export interface TodoItem {
   done: boolean;
   /** Nesting level (two spaces per level). */
@@ -16,7 +16,7 @@ export interface TodoItem {
   /** Line number in the note (what a click on the checkbox has to flip). */
   line: number;
 }
-export type Block = { kind: "p"; text: string } | { kind: "ul" | "ol"; items: string[]; start?: number } | { kind: "todo"; items: TodoItem[] };
+export type Block = { kind: "p"; text: string } | { kind: "math"; tex: string } | { kind: "ul" | "ol"; items: string[]; start?: number } | { kind: "todo"; items: TodoItem[] };
 
 import { matchTodo } from "../tasks/parse";
 
@@ -31,7 +31,30 @@ export function parseBlocks(text: string): Block[] {
     if (para.length) blocks.push({ kind: "p", text: para.join("\n") });
     para = [];
   };
-  for (const [lineNo, line] of text.split("\n").entries()) {
+  const lines = text.split("\n");
+  for (let lineNo = 0; lineNo < lines.length; lineNo++) {
+    const line = lines[lineNo];
+    // Display math: `$$ ... $$` on one line, or opened by a `$$` line and closed by a line ending in `$$`.
+    if (line.trimStart().startsWith("$$")) {
+      const first = line.trimStart().slice(2);
+      let tex: string | null = null;
+      let last = lineNo;
+      if (first.trimEnd().endsWith("$$") && first.trim().length > 2) tex = first.trimEnd().slice(0, -2);
+      else
+        for (let k = lineNo + 1; k < lines.length; k++) {
+          if (lines[k].trimEnd().endsWith("$$")) {
+            tex = [first, ...lines.slice(lineNo + 1, k), lines[k].trimEnd().slice(0, -2)].join("\n");
+            last = k;
+            break;
+          }
+        }
+      if (tex !== null && tex.trim()) {
+        flush();
+        blocks.push({ kind: "math", tex: tex.trim() });
+        lineNo = last;
+        continue;
+      }
+    }
     const todo = matchTodo(line);
     if (todo) {
       flush();
@@ -71,6 +94,20 @@ function closeStar(s: string, from: number): number {
   return -1;
 }
 
+/** End of an inline `$...$` that opens at `from` (the char after the `$`), or -1. Like pandoc: no space just inside, and no digit right after the closing `$`, so "$5 and $10" stays text. */
+function closeMath(s: string, from: number): number {
+  if (from >= s.length || /\s/.test(s[from])) return -1;
+  for (let j = from; j < s.length; j++) {
+    if (s[j] === "\\") {
+      j++;
+      continue;
+    }
+    if (s[j] === "\n") return -1;
+    if (s[j] === "$") return j > from && !/\s/.test(s[j - 1]) && !/\d/.test(s[j + 1] ?? "") ? j : -1;
+  }
+  return -1;
+}
+
 export function parseInline(s: string): Inline[] {
   const out: Inline[] = [];
   let text = "";
@@ -80,6 +117,20 @@ export function parseInline(s: string): Inline[] {
   };
   let i = 0;
   while (i < s.length) {
+    if (s[i] === "\\" && s[i + 1] === "$") {
+      text += "$"; // \$ is a literal dollar sign
+      i += 2;
+      continue;
+    }
+    if (s[i] === "$" && s[i + 1] !== "$") {
+      const end = closeMath(s, i + 1);
+      if (end > 0) {
+        pushText();
+        out.push({ t: "math", v: s.slice(i + 1, end) });
+        i = end + 1;
+        continue;
+      }
+    }
     let kind: InlineKind | null = null;
     let open = 0;
     let end = -1;
@@ -121,4 +172,16 @@ export function parseInline(s: string): Inline[] {
   }
   pushText();
   return out;
+}
+
+/** Does the note contain a LaTeX formula (inline `$..$` or display `$$..$$`)? */
+export function hasMath(text: string): boolean {
+  if (!text.includes("$")) return false;
+  const inline = (nodes: Inline[]): boolean => nodes.some((n) => n.t === "math" || (n.t !== "text" && inline(n.c)));
+  return parseBlocks(text).some((b) => {
+    if (b.kind === "math") return true;
+    if (b.kind === "p") return inline(parseInline(b.text));
+    if (b.kind === "todo") return b.items.some((it) => inline(parseInline(it.text)));
+    return b.items.some((it) => inline(parseInline(it)));
+  });
 }

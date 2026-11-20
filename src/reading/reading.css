@@ -447,3 +447,11 @@
 }
 .wr-card > .wr-sum { margin: 0; }
 .wr-card .wr-note + .wr-note { margin-top: 6px; }
+
+.wr-note-text {
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}

@@ -345,6 +345,8 @@ export const zhHant: Record<Key, string> & Record<string, string> = {
   "hub.deleteSaved": "刪除收藏",
   "hub.tags": "標籤",
   "hub.tagsEmpty": "在筆記裡輸入 #標籤/子標籤 即可建立",
+  "hub.moreSources": "更多來源（還有 {n} 個）",
+  "hub.lessSources": "收起",
   "hub.sources": "來源",
   "hub.drawer": "標籤與來源",
   "hub.exportTitle": "筆記 · {what}",
@@ -377,6 +379,9 @@ export const zhHant: Record<Key, string> & Record<string, string> = {
   "tag.maxImagesIgnored": "最多新增 {n} 張圖片，多餘的已忽略",
   "tag.imageFail": "新增圖片失敗：{err}",
   "tag.removeTag": "移除這個標籤",
+  "tag.preview": "預覽",
+  "tag.previewOff": "收起預覽",
+  "tag.previewTip": "按儲存後的樣子預覽這則筆記",
   "tag.new": "新建",
 
   // note text / images

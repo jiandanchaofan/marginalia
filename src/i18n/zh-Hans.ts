@@ -349,6 +349,8 @@ export const zhHans = {
   "hub.deleteSaved": "删除收藏",
   "hub.tags": "标签",
   "hub.tagsEmpty": "在笔记里输入 #标签/子标签 即可创建",
+  "hub.moreSources": "更多来源（还有 {n} 个）",
+  "hub.lessSources": "收起",
   "hub.sources": "来源",
   "hub.drawer": "标签与来源",
   "hub.exportTitle": "笔记 · {what}",
@@ -381,6 +383,9 @@ export const zhHans = {
   "tag.maxImagesIgnored": "最多添加 {n} 张图片，多余的已忽略",
   "tag.imageFail": "添加图片失败：{err}",
   "tag.removeTag": "移除这个标签",
+  "tag.preview": "预览",
+  "tag.previewOff": "收起预览",
+  "tag.previewTip": "按保存后的样子预览这条笔记",
   "tag.new": "新建",
 
   // note text / images

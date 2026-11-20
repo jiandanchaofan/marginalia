@@ -1,3 +1,4 @@
+import { SOURCE_LIMIT, SourceList } from "./SourceList";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, BookOpen, Bookmark, CheckCheck, Eye, EyeOff, Globe, Inbox as InboxIcon, Loader2, Plus, RefreshCw, Rss, Search, Tags, Trash2, Undo2, X } from "lucide-react";
 import type { BookRecord } from "../core/types";
@@ -230,7 +231,7 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
 
       <div className="side-title">{tr("ib.sources")}</div>
       <div className="side-section">
-        {sources.map((s) => (
+        <SourceList limit={SOURCE_LIMIT} activeIndex={sources.findIndex((x) => x.id === sourceId)} more={(n) => tr("hub.moreSources", { n })} less={tr("hub.lessSources")} items={sources.map((s) => (
           <div key={s.id} className={`tree-row source-row-side ${sourceId === s.id ? "on" : ""}`}>
             <button
               className="tree-label"
@@ -263,7 +264,7 @@ export function Inbox({ books, refreshing, lastRefresh, onRefresh, onSave, onOpe
               </button>
             </span>
           </div>
-        ))}
+        ))} />
         {!sources.length && <div className="side-empty">{tr("ib.noSources")}</div>}
       </div>
     </aside>

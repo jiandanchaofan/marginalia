@@ -15,6 +15,7 @@ import { useTasks } from "../tasks/useTasks";
 import { weekTag } from "../tasks/words";
 import { rememberWeekTag, weekReviewTags } from "../notes/aliases";
 import { percentBefore, recordGoalSnaps, snapStore, type Snap } from "../tasks/snaps";
+import { NoteText } from "../components/NoteText";
 import { useReading } from "./store";
 import { useReviewData } from "../review/store";
 import { fmtSecs, weekRange, weekStats } from "./stats";
@@ -237,7 +238,7 @@ export function WeeklyReview({ books, notify, onOpenNote }: { books: Map<string,
               onClick={() => (isFreeNote(h.note) ? notify(stripTags(h.note.note).trim().slice(0, 120)) : onOpenNote(h))}
               title={t("wr.reread")}
             >
-              {stripTags(h.note.note).trim().slice(0, 200)}
+              <NoteText className="wr-note-text" text={stripTags(h.note.note).trim()} />
               <small>
                 {isFreeNote(h.note) ? t("kind.free") : titleOf(h.bookId)} · {t("wr.reread")}
               </small>

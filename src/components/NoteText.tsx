@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import { Tex } from "./Math";
 import { findRefs } from "../host/registry";
 import { openRef } from "../host/RefPreview";
 import { segments } from "../notes/tags";
@@ -85,6 +86,7 @@ function Inlines({ nodes, ctx }: { nodes: Inline[]; ctx: Ctx }) {
     <>
       {nodes.map((n, i) => {
         if (n.t === "text") return <Leaf key={i} text={n.v} ctx={ctx} />;
+        if (n.t === "math") return <Tex key={i} tex={n.v} />;
         const kids = <Inlines nodes={n.c} ctx={ctx} />;
         return n.t === "b" ? <strong key={i}>{kids}</strong> : n.t === "i" ? <em key={i}>{kids}</em> : n.t === "u" ? <u key={i}>{kids}</u> : <s key={i}>{kids}</s>;
       })}
@@ -154,6 +156,8 @@ export function NoteText({
       {parseBlocks(text).map((b, i) =>
         b.kind === "p" ? (
           <Inlines key={i} nodes={parseInline(b.text)} ctx={ctx} />
+        ) : b.kind === "math" ? (
+          <Tex key={i} tex={b.tex} display />
         ) : b.kind === "todo" ? (
           <ul key={i} className="note-todos">
             {b.items.map((it) => (

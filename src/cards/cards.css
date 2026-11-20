@@ -158,6 +158,7 @@ html.card-mode #root {
   overflow: hidden;
 }
 .nc-text {
+  white-space: pre-wrap;
   font-size: 13px;
   line-height: 1.7;
   display: -webkit-box;

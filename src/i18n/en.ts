@@ -352,6 +352,8 @@ export const en: Record<Key, string> & Record<string, string> = {
   "hub.deleteSaved": "Delete saved filter",
   "hub.tags": "Tags",
   "hub.tagsEmpty": "Type #tag/subtag in a note to create one",
+  "hub.moreSources": "More sources ({n} more)",
+  "hub.lessSources": "Show fewer",
   "hub.sources": "Sources",
   "hub.drawer": "Tags and sources",
   "hub.exportTitle": "Notes · {what}",
@@ -384,6 +386,9 @@ export const en: Record<Key, string> & Record<string, string> = {
   "tag.maxImagesIgnored": "At most {n} pictures; extras were ignored",
   "tag.imageFail": "Couldn't add the picture: {err}",
   "tag.removeTag": "Remove this tag",
+  "tag.preview": "Preview",
+  "tag.previewOff": "Hide preview",
+  "tag.previewTip": "Preview of the note as it will be shown",
   "tag.new": "New",
 
   // note text / images

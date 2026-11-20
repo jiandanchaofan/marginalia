@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { SOURCE_LIMIT, SourceList } from "./SourceList";
 import { docTitle } from "../host/registry";
 import { isVirtualDoc } from "../host/virtualDoc";
 import { BookOpen, ChevronRight, FileText, Hash, Library as LibraryIcon, Network, NotebookPen, Pencil, Pin, PinOff, SlidersHorizontal, Sparkles, Star, Tags, Trash2, X } from "lucide-react";
@@ -234,6 +235,18 @@ export function NotesHub({ books, counts, theme, onOpenNote, onOpenBook, notify 
     );
   };
 
+  const isOn = (id: string) => mode === "notes" && JSON.stringify({ type: "book", id }) === JSON.stringify(source);
+  const sourceItems = [
+    ...books
+      .filter((b) => counts[b.id])
+      .sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))
+      .map((b) => ({ on: isOn(b.id), node: src({ type: "book", id: b.id }, b.title, counts[b.id] ?? 0, <DocTypeBadge type={docType(b)} inline size={15} />) })),
+    ...Object.keys(counts)
+      .filter((id) => !books.some((b) => b.id === id) && isVirtualDoc(id) && docTitle(id))
+      .sort((a, b) => (counts[b] ?? 0) - (counts[a] ?? 0))
+      .map((id) => ({ on: isOn(id), node: src({ type: "book", id }, docTitle(id), counts[id] ?? 0, <BookOpen size={14} />) })),
+  ];
+
   const sidebar = (
     <aside className={`hub-side ${drawer ? "open" : ""}`}>
       <Heatmap selected={filter.day} onPick={pickDay} />
@@ -302,14 +315,7 @@ export function NotesHub({ books, counts, theme, onOpenNote, onOpenBook, notify 
       <div className="side-section tree">{tree.length ? tree.map((n) => renderNode(n, 0)) : <div className="side-empty">{t("hub.tagsEmpty")}</div>}</div>
       <div className="side-title">{t("hub.sources")}</div>
       <div className="side-section">
-        {books
-          .filter((b) => counts[b.id])
-          .sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))
-          .map((b) => src({ type: "book", id: b.id }, b.title, counts[b.id] ?? 0, <DocTypeBadge type={docType(b)} inline size={15} />))}
-        {Object.keys(counts)
-          .filter((id) => !books.some((b) => b.id === id) && isVirtualDoc(id) && docTitle(id))
-          .sort((a, b) => (counts[b] ?? 0) - (counts[a] ?? 0))
-          .map((id) => src({ type: "book", id }, docTitle(id), counts[id] ?? 0, <BookOpen size={14} />))}
+        <SourceList limit={SOURCE_LIMIT} activeIndex={sourceItems.findIndex((x) => x.on)} items={sourceItems.map((x) => x.node)} more={(n) => t("hub.moreSources", { n })} less={t("hub.lessSources")} />
       </div>
     </aside>
   );

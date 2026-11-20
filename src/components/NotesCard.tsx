@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { notesStore, useNotesVersion, type NoteHit } from "../notes/store";
 import { stripTags } from "../notes/tags";
+import { NoteText } from "./NoteText";
 import { isFreeNote } from "../core/types";
 import { loadLibrary } from "../platform";
 import { t } from "../i18n";
@@ -95,7 +96,7 @@ function ReviewPane({ long, secs }: { long: boolean; secs: number }) {
           <span>{agoLabel(n.createdAt)}</span>
         </span>
         {quote && <span className="nc-quote">{quote}</span>}
-        <span className="nc-text">{stripTags(n.note).trim()}</span>
+        <NoteText className="nc-text" text={stripTags(n.note).trim()} />
         {long && tags.length > 0 && (
           <span className="nc-tags">
             {tags.slice(0, 3).map((x) => (

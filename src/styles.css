@@ -8962,3 +8962,76 @@ nav.settings-tabs button.on { background: var(--soft); color: var(--text); font-
 /* Settings -> Plugins: the list needs no outer frame, each plugin already has its own */
 .settings-pane.cards .panel.plugins-panel { border: 0; background: transparent; padding: 0; }
 .settings-pane.cards .plugins-panel .panel-title { border-bottom: 0; padding-bottom: 0; margin-bottom: 6px; }
+
+/* LaTeX formulas in notes */
+.math.display,
+.math-error.display {
+  display: block;
+  margin: 6px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+  white-space: normal;
+}
+.math .katex {
+  font-size: 1.05em;
+}
+.math .katex-display {
+  margin: 0;
+}
+.math-error {
+  color: #c0392b;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.92em;
+  white-space: pre-wrap;
+}
+
+/* Live preview under the note editor */
+.tt-preview-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+.tt-preview-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.tt-preview-btn:hover,
+.tt-preview-btn.on {
+  opacity: 1;
+}
+.tt-preview {
+  margin-top: 4px;
+  padding: 8px 10px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: var(--soft);
+}
+
+.side-more {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 5px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.side-more:hover {
+  color: var(--text);
+}
