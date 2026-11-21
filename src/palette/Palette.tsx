@@ -12,10 +12,8 @@ import { docLabel } from "../host/label";
 import { lookupRefs } from "../host/registry";
 import { allCommands, type Actions } from "./commands";
 import { bookIndex, type Found } from "../search/backend";
-import { postIntent } from "./intent";
-import { PALETTE_ID, chips, comboOf, eventCombo, ownerOf, shortcutsPaused, type Overrides } from "./shortcuts";
-import { PALETTE_EVENT } from "./wake";
-import { dictAvailable, lookupWord, looksLikeWord } from "../dict/api";
+import { postIntent, type Intent } from "./intent";
+import { PALETTE_ID, chips, comboOf, eventCombo, ownerOf, shortcutsPaused, type Overrides } from "./shortcuts";import { dictAvailable, lookupWord, looksLikeWord } from "../dict/api";
 import "./palette.css";
 
 type Scope = "tag" | "book" | "cmd" | "text" | null;
@@ -90,21 +88,75 @@ function Hl({ text, q }: { text: string; q: string }) {
   );
 }
 
-interface Props {
-  books: BookRecord[];
+type BookTarget = { section: number; text: string; snippet?: string };
+
+/**
+ * What picking a row does, as plain data: the main window runs it itself, and the small wake-up window
+ * (another webview, see QuickWindow) sends it over to the main window to run.
+ */
+export type Act =
+  | { k: "cmd"; id: string }
+  | { k: "intent"; intent: Intent; view: "notes" | "tasks" }
+  | { k: "task"; id: string }
+  | { k: "book"; id: string }
+  | { k: "bookAt"; id: string; target: BookTarget }
+  | { k: "note"; hit: NoteHit }
+  | { k: "doc"; detail: unknown }
+  | { k: "dict"; word: string }
+  | { k: "makeNote"; body: string };
+
+export interface ActCtx {
   actions: Actions;
   onOpenBook(id: string): void;
   onOpenNote(hit: NoteHit): void;
   onOpenTask(id: string): void;
-  onOpenBookAt(id: string, target: { section: number; text: string; snippet?: string }): void;
-  bookSearch?: boolean;
+  onOpenBookAt(id: string, target: BookTarget): void;
   notify(msg: string): void;
+}
+
+export async function runAct(a: Act, c: ActCtx) {
+  switch (a.k) {
+    case "cmd":
+      return allCommands(c.actions.desktop).find((x) => x.id === a.id)?.run(c.actions);
+    case "intent":
+      postIntent(a.intent);
+      return c.actions.view(a.view);
+    case "task":
+      return c.onOpenTask(a.id);
+    case "book":
+      return c.onOpenBook(a.id);
+    case "bookAt":
+      return c.onOpenBookAt(a.id, a.target);
+    case "note":
+      return c.onOpenNote(a.hit);
+    case "doc":
+      return void window.dispatchEvent(new CustomEvent("reader:open-doc", { detail: a.detail }));
+    case "dict":
+      return lookupWord(a.word);
+    case "makeNote": {
+      const now = Date.now();
+      const n: Annotation = { id: crypto.randomUUID(), anchor: DOC_ANCHOR, color: "amber", style: "none", note: a.body, tags: parseTags(a.body), side: "right", kind: "free", createdAt: now, updatedAt: now };
+      try {
+        await notesStore.add(FREE_BOOK, n);
+        c.notify(t("pal.noteSaved"));
+      } catch (e) {
+        c.notify(String(e));
+      }
+    }
+  }
+}
+
+interface Props extends ActCtx {
+  books: BookRecord[];
+  bookSearch?: boolean;
   shortcuts?: Overrides;
+  /** The small wake-up window: always open, rows are sent to the main window, Esc / a click outside hides the window. */
+  quick?: { onAct(a: Act): void; onClose(): void };
 }
 
 /** Ctrl + K: one box to find notes, books, tags and to-dos, and to run commands. */
-export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, onOpenBookAt, bookSearch, notify, shortcuts }: Props) {
-  const [open, setOpen] = useState(false);
+export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, onOpenBookAt, bookSearch, notify, shortcuts, quick }: Props) {
+  const [open, setOpen] = useState(!!quick);
   const [text, setText] = useState("");
   const [scope, setScope] = useState<Scope>(null);
   const [sel, setSel] = useState(0);
@@ -119,7 +171,11 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
   live.current = { actions, shortcuts };
   const q = text.trim().toLowerCase();
 
+  const ctx = { actions, onOpenBook, onOpenNote, onOpenTask, onOpenBookAt, notify };
+  const act = (a: Act) => (quick ? quick.onAct(a) : void runAct(a, ctx));
+
   useEffect(() => {
+    if (quick) return; // the wake-up window only searches; its keys go nowhere else
     const on = (e: KeyboardEvent) => {
       if (shortcutsPaused() || e.isComposing) return;
       const combo = eventCombo(e);
@@ -139,18 +195,8 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
       cmd.run(a);
     };
     window.addEventListener("keydown", on, true);
-    // the wake-up key (from any app, see wake.ts) opens it, or toggles it when the window was already in front
-    const fromWake = (e: Event) => {
-      const how = (e as CustomEvent<string>).detail;
-      setOpen((o) => (how === "toggle" ? !o : true));
-      // the window has only just come to the front: put the caret in the box once it has the focus
-      window.setTimeout(() => input.current?.focus(), 60);
-    };
-    window.addEventListener(PALETTE_EVENT, fromWake);
-    return () => {
-      window.removeEventListener("keydown", on, true);
-      window.removeEventListener(PALETTE_EVENT, fromWake);
-    };
+    return () => window.removeEventListener("keydown", on, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -196,17 +242,17 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
     };
   }, [open, scope, q, text, bookSearch]);
 
-  const close = () => setOpen(false);
+  const close = () => (quick ? quick.onClose() : setOpen(false));
   const cmds = useMemo(() => (open ? allCommands(actions.desktop) : []), [open, actions.desktop]);
 
   const groups = useMemo<Group[]>(() => {
     if (!open) return [];
     const out: Group[] = [];
-    const cmdRow = (c: (typeof cmds)[number]): Row => ({ key: `c:${c.id}`, kind: c.icon, title: c.title, sub: c.sub, keys: comboOf(c.id, shortcuts) || undefined, run: () => c.run(actions) });
-    const goalRow = (g: (typeof goals)[number]): Row => ({ key: `g:${g.id}`, kind: "goal", title: g.title, sub: goalLabel(g), hint: t("tasks.goals"), run: () => (postIntent({ to: "tasks", view: g.kind === "month" ? "month" : "year" }), actions.view("tasks")) });
-    const taskRow = (x: (typeof tasks)[number]): Row => ({ key: `k:${x.id}`, kind: "task", title: x.title, sub: [x.plan, x.done ? t("list.done") : ""].filter(Boolean).join(" · ") || undefined, run: () => onOpenTask(x.id) });
-    const tagRow = (x: TagInfo): Row => ({ key: `t:${x.tag}`, kind: "tag", title: x.tag, sub: t("pal.tagMeta", { n: x.count }), hint: t("pal.topicHint"), run: () => (postIntent({ to: "topic", tag: x.tag }), actions.view("notes")) });
-    const bookRow = (b: BookRecord): Row => ({ key: `b:${b.id}`, kind: "book", title: b.title, sub: [b.author, t("pal.bookMeta", { pct: Math.round((b.progress ?? 0) * 100) })].filter(Boolean).join(" · "), hint: t("pal.open"), run: () => onOpenBook(b.id) });
+    const cmdRow = (c: (typeof cmds)[number]): Row => ({ key: `c:${c.id}`, kind: c.icon, title: c.title, sub: c.sub, keys: comboOf(c.id, shortcuts) || undefined, run: () => act({ k: "cmd", id: c.id }) });
+    const goalRow = (g: (typeof goals)[number]): Row => ({ key: `g:${g.id}`, kind: "goal", title: g.title, sub: goalLabel(g), hint: t("tasks.goals"), run: () => act({ k: "intent", intent: { to: "tasks", view: g.kind === "month" ? "month" : "year" }, view: "tasks" }) });
+    const taskRow = (x: (typeof tasks)[number]): Row => ({ key: `k:${x.id}`, kind: "task", title: x.title, sub: [x.plan, x.done ? t("list.done") : ""].filter(Boolean).join(" · ") || undefined, run: () => act({ k: "task", id: x.id }) });
+    const tagRow = (x: TagInfo): Row => ({ key: `t:${x.tag}`, kind: "tag", title: x.tag, sub: t("pal.tagMeta", { n: x.count }), hint: t("pal.topicHint"), run: () => act({ k: "intent", intent: { to: "topic", tag: x.tag }, view: "notes" }) });
+    const bookRow = (b: BookRecord): Row => ({ key: `b:${b.id}`, kind: "book", title: b.title, sub: [b.author, t("pal.bookMeta", { pct: Math.round((b.progress ?? 0) * 100) })].filter(Boolean).join(" · "), hint: t("pal.open"), run: () => act({ k: "book", id: b.id }) });
     const recentBooks = [...books].filter((b) => b.lastOpenedAt > 0).sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
 
     const textGroup = (): Group | null => {
@@ -220,7 +266,7 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
           if (!b) return [];
           const first = !seen.has(h.bookId);
           seen.add(h.bookId);
-          return [{ key: `x:${h.bookId}:${i}`, kind: "text" as const, title: h.snippet, sub: [b.title, h.section > 0 || b.format === "pdf" ? t(b.format === "pdf" ? "th.page" : "th.section", { n: h.section + 1 }) : "", first && h.count > 1 ? t("th.count", { n: h.count }) : ""].filter(Boolean).join(" · "), hint: t("pal.open"), run: () => onOpenBookAt(h.bookId, { section: h.section, text: text.trim(), snippet: h.snippet }) }];
+          return [{ key: `x:${h.bookId}:${i}`, kind: "text" as const, title: h.snippet, sub: [b.title, h.section > 0 || b.format === "pdf" ? t(b.format === "pdf" ? "th.page" : "th.section", { n: h.section + 1 }) : "", first && h.count > 1 ? t("th.count", { n: h.count }) : ""].filter(Boolean).join(" · "), hint: t("pal.open"), run: () => act({ k: "bookAt", id: h.bookId, target: { section: h.section, text: text.trim(), snippet: h.snippet } }) }];
         }),
       };
     };
@@ -249,7 +295,7 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
     } else {
       // an English word: look it up in the dictionaries
       if (dictAvailable() && looksLikeWord(text))
-        out.push({ title: t("pal.dict"), rows: [{ key: "d:" + text.trim(), kind: "dict", title: t("pal.dictRow", { q: text.trim() }), hint: "↵", run: () => lookupWord(text.trim()) }] });
+        out.push({ title: t("pal.dict"), rows: [{ key: "d:" + text.trim(), kind: "dict", title: t("pal.dictRow", { q: text.trim() }), hint: "↵", run: () => act({ k: "dict", word: text.trim() }) }] });
       // places in a module's texts ("约 3:16"): first, because typing one means going there
       const places = lookupRefs(text.trim());
       if (places.length)
@@ -261,7 +307,7 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
             title: p.label,
             sub: p.sub,
             hint: t("pal.open"),
-            run: () => window.dispatchEvent(new CustomEvent("reader:open-doc", { detail: { docId: p.docId, title: p.title, at: { section: p.section, fragment: p.fragment } } })),
+            run: () => act({ k: "doc", detail: { docId: p.docId, title: p.title, at: { section: p.section, fragment: p.fragment } } }),
           })),
         });
       const tg = pick(tags, q, (x) => x.tag).slice(0, CAP);
@@ -277,10 +323,7 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
             kind: "note" as const,
             title: notePreview(h.note, 90),
             sub: t("pal.noteMeta", { src: isFreeNote(h.note) ? t("hub.free") : docLabel(byBook.get(h.bookId), h.note), when: relTime(h.note.createdAt) }),
-            run: () => {
-              if (isFreeNote(h.note)) (postIntent({ to: "find", q: text.trim() }), actions.view("notes"));
-              else onOpenNote(h);
-            },
+            run: () => act(isFreeNote(h.note) ? { k: "intent", intent: { to: "find", q: text.trim() }, view: "notes" } : { k: "note", hit: h }),
           })),
         });
       }
@@ -295,24 +338,13 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
       if (out.every((g) => g.title === t("pal.dict"))) {
         out.push({
           title: t("pal.none", { q: text.trim() }),
-          rows: [{ key: "make", kind: "cmd", title: t("pal.makeNote", { q: text.trim() }), hint: "↵", run: () => void makeNote(text.trim()) }],
+          rows: [{ key: "make", kind: "cmd", title: t("pal.makeNote", { q: text.trim() }), hint: "↵", run: () => act({ k: "makeNote", body: text.trim() }) }],
         });
       }
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, scope, q, tags, books, tasks, goals, noteHits, cmds, shortcuts, textFound]);
-
-  const makeNote = async (body: string) => {
-    const now = Date.now();
-    const a: Annotation = { id: crypto.randomUUID(), anchor: DOC_ANCHOR, color: "amber", style: "none", note: body, tags: parseTags(body), side: "right", kind: "free", createdAt: now, updatedAt: now };
-    try {
-      await notesStore.add(FREE_BOOK, a);
-      notify(t("pal.noteSaved"));
-    } catch (e) {
-      notify(String(e));
-    }
-  };
 
   const flat = useMemo(() => groups.flatMap((g) => g.rows), [groups]);
   useEffect(() => setSel(0), [scope, q]);
@@ -353,7 +385,7 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
   const scopeName = scope === "tag" ? t("pal.scopeTag") : scope === "book" ? t("pal.scopeBook") : scope === "cmd" ? t("pal.scopeCmd") : scope === "text" ? t("pal.scopeText") : "";
   let n = -1;
   return (
-    <div className="pal-wrap" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+    <div className={`pal-wrap ${quick ? "quick" : ""}`} onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="pal" role="dialog" aria-modal="true" aria-label={t("pal.ph")}>
         <div className="pal-in">
           <Search size={21} />

@@ -45,15 +45,14 @@ import { brandName, resolveLang, setLang, t } from "./i18n";
 import { localizeErr } from "./i18n/errors";
 import { recordGoalSnaps } from "./tasks/snaps";
 import { ensureReviewItems } from "./review/engine";
-import { Palette } from "./palette/Palette";
+import { Palette, runAct, type Act, type ActCtx } from "./palette/Palette";
 import { syncIndex } from "./search/indexer";
 import "./trash/notes";
 import { trashStore } from "./trash/store";
 import { ConfirmHost, ToastHost } from "./trash/ui";
 import { QuickCapture, type CaptureKind } from "./palette/QuickCapture";
 import type { Actions } from "./palette/commands";
-import { applyWakeKey, wakeComboOf, wakeUp } from "./palette/wake";
-import type { Tab as SettingsTab } from "./components/SettingsDialog";
+import { PALETTE_ACT, applyWakeKey, ensureQuickWindow, wakeComboOf, wakeUp } from "./palette/wake";import type { Tab as SettingsTab } from "./components/SettingsDialog";
 import { toggleCard } from "./cards/windows";
 import { NAV_EVENT, type NavTarget } from "./cards/nav";
 import { startSync } from "./cards/sync";
@@ -511,6 +510,10 @@ export default function App() {
           if (anyCardOn() || (await TrayIcon.getById("main"))) {
             e.preventDefault();
             await win.hide();
+          } else {
+            // closing for real: the hidden wake-up window must not keep the program alive
+            const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+            await (await WebviewWindow.getByLabel("quick"))?.destroy().catch(() => {});
           }
         }),
       );
@@ -523,10 +526,31 @@ export default function App() {
     };
   }, []);
 
-  // Desktop: the wake-up key that works from any app (Settings → Shortcuts)
+  // Desktop: the wake-up key that works from any app (Settings → Shortcuts) brings up a small window with only the palette
   useEffect(() => {
     if (isTauri) void applyWakeKey(wakeComboOf(settings.wakeKey), () => void wakeUp());
   }, [settings.wakeKey]);
+  // what was picked there comes here: the main window comes up and goes to it
+  const actCtx = useRef<ActCtx | null>(null);
+  useEffect(() => {
+    if (!isTauri) return;
+    let off = () => {};
+    let gone = false;
+    void ensureQuickWindow();
+    (async () => {
+      const { listen } = await import("@tauri-apps/api/event");
+      const un = await listen<Act>(PALETTE_ACT, async (e) => {
+        await showMainWindow();
+        if (actCtx.current) void runAct(e.payload, actCtx.current);
+      });
+      if (gone) un();
+      else off = un;
+    })();
+    return () => {
+      gone = true;
+      off();
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
@@ -581,6 +605,12 @@ export default function App() {
     setView("tasks");
     window.dispatchEvent(new Event("reader:tasks-nav"));
   };
+  const openBookFromPalette = (id: string) => {
+    updateBook(id, { lastOpenedAt: Date.now() });
+    setFocusText(null);
+    setOpenId(id);
+  };
+  actCtx.current = { actions: paletteActions, onOpenBook: openBookFromPalette, onOpenNote: openNote, onOpenTask: openTaskFromPalette, onOpenBookAt: openBookAt, notify };
 
   // One window zoom, two remembered values: one while reading, one for the shelf / notes / explore pages.
   const reading = !!openBook;
@@ -658,11 +688,7 @@ export default function App() {
       <Palette
         books={books}
         actions={paletteActions}
-        onOpenBook={(id) => {
-          updateBook(id, { lastOpenedAt: Date.now() });
-          setFocusText(null);
-          setOpenId(id);
-        }}
+        onOpenBook={openBookFromPalette}
         onOpenNote={openNote}
         onOpenBookAt={openBookAt}
         bookSearch={settings.bookSearch !== false}

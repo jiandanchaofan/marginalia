@@ -8,8 +8,6 @@ import { isTauri } from "../platform";
 export const DEFAULT_WAKE = "Ctrl+Alt+K";
 /** The id the shortcut settings use for the wake-up row. */
 export const WAKE_ID = "__wake";
-/** The palette listens for this: detail "open" or "toggle". */
-export const PALETTE_EVENT = "reader:palette";
 
 export const wakeComboOf = (wakeKey: string | undefined) => wakeKey ?? DEFAULT_WAKE;
 
@@ -96,15 +94,68 @@ export function suspendWake(s: boolean) {
   void sync();
 }
 
-/** What pressing the key does: in front with the palette open; pressed again while already in front, the palette closes. */
+/* ---- the small wake-up window: only the palette, over whatever app is in front ---- */
+export const QUICK_LABEL = "quick";
+export const QUICK_WIDTH = 660;
+/** Main → small window: you are about to be shown, start fresh. */
+export const QUICK_SHOW = "quick-show";
+/** Small window → main: run this pick (an `Act`) and come to the front. */
+export const PALETTE_ACT = "palette-act";
+
+type Win = import("@tauri-apps/api/webviewWindow").WebviewWindow;
+let making: Promise<Win> | null = null;
+
+/** Made once, hidden, when the app starts, so the key brings it up at once (one creation at a time: two calls share it). */
+export function ensureQuickWindow(): Promise<Win> {
+  making ??= makeQuickWindow().finally(() => (making = null));
+  return making;
+}
+
+async function makeQuickWindow(): Promise<Win> {
+  const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+  const had = await WebviewWindow.getByLabel(QUICK_LABEL);
+  if (had) return had;
+  const w = new WebviewWindow(QUICK_LABEL, {
+    url: "index.html?quick=1",
+    title: "Marginalia",
+    width: QUICK_WIDTH,
+    height: 120,
+    visible: false,
+    focus: false,
+    decorations: false,
+    transparent: true,
+    shadow: false,
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+  });
+  // wait until it really exists (or failed), so the next call finds it by its label
+  const ok = await new Promise<boolean>((res) => {
+    void w.once("tauri://created", () => res(true));
+    void w.once("tauri://error", (e) => (console.warn("wake-up window failed", e), res(false)));
+  });
+  return ok ? w : ((await WebviewWindow.getByLabel(QUICK_LABEL)) ?? w);
+}
+
+/** What pressing the key does: the small window comes up on the screen the mouse is on; pressed again while it is up, it goes away. */
 export async function wakeUp() {
-  const { getCurrentWindow } = await import("@tauri-apps/api/window");
-  const w = getCurrentWindow();
-  const inFront = (await w.isVisible()) && !(await w.isMinimized()) && (await w.isFocused());
-  if (!inFront) {
-    await w.show();
-    await w.unminimize();
-    await w.setFocus();
+  const { emitTo } = await import("@tauri-apps/api/event");
+  const { cursorPosition, monitorFromPoint, LogicalPosition } = await import("@tauri-apps/api/window");
+  const w = await ensureQuickWindow();
+  if ((await w.isVisible()) && (await w.isFocused())) return void (await w.hide());
+  await emitTo(QUICK_LABEL, QUICK_SHOW);
+  try {
+    const c = await cursorPosition();
+    const m = await monitorFromPoint(c.x, c.y);
+    if (m) {
+      const f = m.scaleFactor;
+      const x = m.position.x / f + (m.size.width / f - QUICK_WIDTH) / 2;
+      const y = m.position.y / f + (m.size.height / f) * 0.2;
+      await w.setPosition(new LogicalPosition(Math.round(x), Math.round(y)));
+    }
+  } catch {
+    /* leave it where it was */
   }
-  window.dispatchEvent(new CustomEvent(PALETTE_EVENT, { detail: inFront ? "toggle" : "open" }));
+  await w.show();
+  await w.setFocus();
 }
