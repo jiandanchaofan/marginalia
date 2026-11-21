@@ -41,6 +41,7 @@
 .ks-keys kbd { font: inherit; font-size: 11.5px; padding: 1px 8px; min-width: 24px; text-align: center; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; background: var(--soft); }
 .ks-reset { flex: none; width: 46px; border: 0; background: none; font-size: 12px; color: var(--ui-accent); text-align: right; cursor: pointer; }
 .ks-reset.off { color: transparent; cursor: default; }
+.ks-wake { padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
 .ks-warn { margin: 6px 0; padding: 9px 12px; border-radius: 9px; background: rgba(176, 69, 42, 0.1); color: #b0452a; font-size: 12.5px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .ks-btn { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px; padding: 2px 10px; font: inherit; font-size: 12px; cursor: pointer; }
 .ks-btn.p { background: var(--ui-accent); border-color: var(--ui-accent); color: #fff; }

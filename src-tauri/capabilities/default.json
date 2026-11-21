@@ -34,12 +34,17 @@
     "core:window:allow-destroy",
     "core:window:allow-close",
     "core:window:allow-is-visible",
+    "core:window:allow-is-minimized",
+    "core:window:allow-is-focused",
     "core:menu:default",
     "core:tray:default",
     "core:image:default",
     "core:app:allow-default-window-icon",
     "core:event:default",
     "autostart:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-is-registered",
     "core:window:allow-set-size",
     "core:window:allow-set-position"
   ]

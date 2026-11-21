@@ -4,6 +4,7 @@ import type { Settings } from "../settings";
 import { t } from "../i18n";
 import { allCommands } from "./commands";
 import { DEFAULT_KEYS, LISTED_IDS, PALETTE_ID, check, chips, comboOf, eventCombo, ownerOf, pauseShortcuts, type Overrides } from "./shortcuts";
+import { DEFAULT_WAKE, WAKE_ID, suspendWake, useWakeState, wakeCheck, wakeComboOf, wakeEventCombo } from "./wake";
 import "./palette.css";
 
 /** The new value of one command's shortcut, keeping only what differs from the default. */
@@ -26,14 +27,31 @@ export function KeysPane({ s, onChange }: { s: Settings; onChange(p: Partial<Set
   const name = (id: string) => (id === PALETTE_ID ? t("ks.palette") : cmds.find((c) => c.id === id)?.title ?? id);
   const save = (next: Overrides) => onChange({ shortcuts: next });
 
+  const wake = wakeComboOf(s.wakeKey);
+  const wakeState = useWakeState();
+  const saveWake = (combo: string) => onChange({ wakeKey: combo === DEFAULT_WAKE ? undefined : combo });
+
   useEffect(() => {
     if (!rec) return;
     pauseShortcuts(true);
+    suspendWake(true);
     const on = (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
       if (e.isComposing) return;
       if (e.key === "Escape") return setRec(null);
+      if (rec === WAKE_ID) {
+        if (e.key === "Backspace" && !e.ctrlKey && !e.altKey && !e.shiftKey) return (setProblem(null), saveWake(""), setRec(null));
+        if (["Control", "Shift", "Alt", "Meta"].includes(e.key)) return;
+        const combo = wakeEventCombo(e);
+        setRec(null);
+        if (!combo) return setProblem({ id: WAKE_ID, text: t("ks.wakeKeyKind") });
+        if (wakeCheck(combo) !== "ok") return setProblem({ id: WAKE_ID, text: t("ks.wakeWeak") });
+        const owner = ownerOf(combo, over);
+        if (owner) return setProblem({ id: WAKE_ID, text: t("ks.wakeClash", { combo, name: name(owner) }) });
+        setProblem(null);
+        return saveWake(combo);
+      }
       if (e.key === "Backspace" && !e.ctrlKey && !e.altKey && !e.shiftKey) {
         if (rec === PALETTE_ID) setProblem({ id: rec, text: t("ks.keepPalette") });
         else save(setCombo(over, rec, ""));
@@ -46,6 +64,10 @@ export function KeysPane({ s, onChange }: { s: Settings; onChange(p: Partial<Set
         setProblem({ id: rec, text: c === "reserved" ? t("ks.reserved", { combo }) : t("ks.needMod") });
         return setRec(null);
       }
+      if (wake && combo === wake) {
+        setProblem({ id: rec, text: t("ks.isWake", { combo }) });
+        return setRec(null);
+      }
       const owner = ownerOf(combo, over, rec);
       setRec(null);
       if (owner) return setPending({ id: rec, combo, owner });
@@ -56,9 +78,51 @@ export function KeysPane({ s, onChange }: { s: Settings; onChange(p: Partial<Set
     return () => {
       window.removeEventListener("keydown", on, true);
       pauseShortcuts(false);
+      suspendWake(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rec, over]);
+  }, [rec, over, wake]);
+
+  const wakeRow = (
+    <div className="ks-wake">
+      <div className="ks-row">
+        <span className="ks-name">
+          {t("ks.wake")}
+          <small>{t("ks.wakeNote")}</small>
+        </span>
+        <button className={`ks-slot ${rec === WAKE_ID ? "rec" : ""} ${wake ? "" : "empty"}`} onClick={() => (setProblem(null), setPending(null), setRec(rec === WAKE_ID ? null : WAKE_ID))}>
+          {rec === WAKE_ID ? (
+            t("ks.press")
+          ) : wake ? (
+            <span className="ks-keys">
+              {chips(wake).map((k) => (
+                <kbd key={k}>{k}</kbd>
+              ))}
+            </span>
+          ) : (
+            t("ks.wakeOff")
+          )}
+        </button>
+        <button className={`ks-reset ${s.wakeKey !== undefined ? "" : "off"}`} disabled={s.wakeKey === undefined} onClick={() => (setProblem(null), saveWake(DEFAULT_WAKE))}>
+          {t("ks.reset")}
+        </button>
+      </div>
+      {problem?.id === WAKE_ID ? (
+        <div className="ks-warn">
+          <span>{problem.text}</span>
+          <button className="ks-btn" onClick={() => setProblem(null)}>
+            {t("ks.ok")}
+          </button>
+        </div>
+      ) : wake && wakeState === "taken" && rec !== WAKE_ID ? (
+        <div className="ks-warn">
+          <span>{t("ks.wakeTaken", { combo: wake })}</span>
+        </div>
+      ) : wakeState === "web" ? (
+        <p className="settings-hint">{t("ks.wakeWeb")}</p>
+      ) : null}
+    </div>
+  );
 
   const extra = Object.keys(over).filter((id) => !LISTED_IDS.includes(id));
   const ids = [...LISTED_IDS.filter((id) => id === PALETTE_ID || id !== "card-notes" || isTauri), ...extra];
@@ -124,6 +188,7 @@ export function KeysPane({ s, onChange }: { s: Settings; onChange(p: Partial<Set
     <div className="panel settings-panel ks">
       <div className="panel-title">{t("settings.tab.keys")}</div>
       <div className="settings-body">
+        {wakeRow}
         {ids.map(row)}
         {addable.length > 0 && (
           <select

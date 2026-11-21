@@ -300,6 +300,8 @@ pub fn run() {
         }));
         // start with the system: only the tray and the desktop cards come up (see `--minimized` in setup)
         builder = builder.plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--minimized"])));
+        // the wake-up key that works from any app (registered by the page: Settings → Shortcuts)
+        builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
     }
 
     builder

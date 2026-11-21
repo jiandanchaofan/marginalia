@@ -14,6 +14,7 @@ import { allCommands, type Actions } from "./commands";
 import { bookIndex, type Found } from "../search/backend";
 import { postIntent } from "./intent";
 import { PALETTE_ID, chips, comboOf, eventCombo, ownerOf, shortcutsPaused, type Overrides } from "./shortcuts";
+import { PALETTE_EVENT } from "./wake";
 import { dictAvailable, lookupWord, looksLikeWord } from "../dict/api";
 import "./palette.css";
 
@@ -138,7 +139,18 @@ export function Palette({ books, actions, onOpenBook, onOpenNote, onOpenTask, on
       cmd.run(a);
     };
     window.addEventListener("keydown", on, true);
-    return () => window.removeEventListener("keydown", on, true);
+    // the wake-up key (from any app, see wake.ts) opens it, or toggles it when the window was already in front
+    const fromWake = (e: Event) => {
+      const how = (e as CustomEvent<string>).detail;
+      setOpen((o) => (how === "toggle" ? !o : true));
+      // the window has only just come to the front: put the caret in the box once it has the focus
+      window.setTimeout(() => input.current?.focus(), 60);
+    };
+    window.addEventListener(PALETTE_EVENT, fromWake);
+    return () => {
+      window.removeEventListener("keydown", on, true);
+      window.removeEventListener(PALETTE_EVENT, fromWake);
+    };
   }, []);
 
   useEffect(() => {

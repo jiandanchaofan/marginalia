@@ -68,6 +68,8 @@ export interface Settings {
   modules?: string[];
   /** Keyboard shortcuts the user changed, by command id ("" = none). */
   shortcuts?: Record<string, string>;
+  /** Desktop: the key that brings the window up with the palette from any app (undefined = Ctrl+Alt+K, "" = off). */
+  wakeKey?: string;
   theme: Theme;
   font: FontChoice;
   /** English / Latin text font (Chinese characters keep using `font`). */
@@ -110,6 +112,7 @@ export function normalizeSettings(s: Settings): Settings {
   if (out.bookSearch !== false) out.bookSearch = true;
   if (out.shortcuts && typeof out.shortcuts === "object") out.shortcuts = Object.fromEntries(Object.entries(out.shortcuts).filter(([k, v]) => typeof k === "string" && typeof v === "string"));
   else out.shortcuts = {};
+  if (out.wakeKey !== undefined && typeof out.wakeKey !== "string") delete out.wakeKey;
   out.weekTag = normalizeTag(String(out.weekTag ?? "").replace(/^#/, "")) || DEFAULT_WEEK_TAG;
   out.zoom = clampZoom(out.zoom);
   out.libZoom = clampZoom(out.libZoom);

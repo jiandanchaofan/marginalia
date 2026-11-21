@@ -52,6 +52,7 @@ import { trashStore } from "./trash/store";
 import { ConfirmHost, ToastHost } from "./trash/ui";
 import { QuickCapture, type CaptureKind } from "./palette/QuickCapture";
 import type { Actions } from "./palette/commands";
+import { applyWakeKey, wakeComboOf, wakeUp } from "./palette/wake";
 import type { Tab as SettingsTab } from "./components/SettingsDialog";
 import { toggleCard } from "./cards/windows";
 import { NAV_EVENT, type NavTarget } from "./cards/nav";
@@ -521,6 +522,11 @@ export default function App() {
       offs.forEach((f) => f());
     };
   }, []);
+
+  // Desktop: the wake-up key that works from any app (Settings → Shortcuts)
+  useEffect(() => {
+    if (isTauri) void applyWakeKey(wakeComboOf(settings.wakeKey), () => void wakeUp());
+  }, [settings.wakeKey]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
