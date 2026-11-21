@@ -52,6 +52,7 @@ import { trashStore } from "./trash/store";
 import { ConfirmHost, ToastHost } from "./trash/ui";
 import { QuickCapture, type CaptureKind } from "./palette/QuickCapture";
 import type { Actions } from "./palette/commands";
+import { startFlomo } from "./flomo/flomo";
 import { PALETTE_ACT, applyWakeKey, ensureQuickWindow, wakeComboOf, wakeUp } from "./palette/wake";import type { Tab as SettingsTab } from "./components/SettingsDialog";
 import { toggleCard } from "./cards/windows";
 import { NAV_EVENT, type NavTarget } from "./cards/nav";
@@ -557,6 +558,8 @@ export default function App() {
   }, [settings.theme]);
 
   useEffect(() => scheduleMdBackup(() => booksRef.current), []);
+  // the flomo plugin (off by default): new notes go over to flomo a little later
+  useEffect(() => startFlomo(() => booksRef.current), []);
 
   const pick = async () => importItems(await pickFiles());
 

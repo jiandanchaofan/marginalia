@@ -11,6 +11,7 @@ mod crypto;
 mod desk;
 mod feeds;
 mod filesync;
+mod flomo;
 mod images;
 mod library;
 mod mdict;
@@ -408,6 +409,10 @@ pub fn run() {
             dict::dict_lookup,
             dict::dict_resource,
             syncapp::sync_status,
+            flomo::flomo_state,
+            flomo::flomo_set_api,
+            flomo::flomo_clear_api,
+            flomo::flomo_send,
             syncapp::sync_connect,
             syncapp::sync_now,
             syncapp::sync_disconnect,

@@ -7,6 +7,7 @@ import type { Annotation, GraphPos, NoteLink } from "../core/types";
 import { isTauri } from "../platform";
 import { hasThought, isUnder, normalizeTag, parseTags, tagSpans } from "./tags";
 import { syncTasksFor } from "../tasks/sync";
+import { flomoQueue } from "../flomo/queue";
 import { tasksStore } from "../tasks/store";
 import { t } from "../i18n";
 import { aliasPairs, familyOf } from "./aliases";
@@ -289,6 +290,8 @@ export const notesStore = {
     const before = seenIds.get(bookId) ?? new Set(isTauri ? [] : browserBook(bookId).map((n) => n.id));
     const keep = new Set(list.map((n) => n.id));
     const removed = [...before].filter((id) => !keep.has(id));
+    // notes made while reading arrive here: the new ones may go to flomo (a plugin, off by default)
+    if (seenIds.has(bookId)) flomoQueue(bookId, list.filter((n) => !before.has(n.id)));
     const known = seenNotes.get(bookId);
     await toTrash(removed.map((id) => known?.get(id)).filter((a): a is Annotation => !!a).map((note) => ({ bookId, note })));
     if (isTauri) await invoke("notes_put_book", { bookId, notes: list });
@@ -308,7 +311,10 @@ export const notesStore = {
     else ls.set(LS_PREFIX + bookId, JSON.stringify([...browserBook(bookId), n]));
     seenIds.get(bookId)?.add(n.id);
     seenNotes.get(bookId)?.set(n.id, n);
-    if (!opts?.noSync) void syncTasksFor([n]);
+    if (!opts?.noSync) {
+      void syncTasksFor([n]);
+      flomoQueue(bookId, [n]); // (`noSync` = brought back from the recycle bin: not a new note)
+    }
     notesChanged();
   },
 

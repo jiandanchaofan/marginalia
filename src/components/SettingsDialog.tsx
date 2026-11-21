@@ -26,6 +26,8 @@ import { CARD_KINDS, cardOn } from "../cards/state";
 import { autostartState, setAutostart } from "../cards/tray";
 import { AppLogo } from "./AppLogo";
 import { DictPanel } from "../dict/DictSettings";
+import { FlomoPanel } from "../flomo/FlomoPanel";
+import { flomoOn, setFlomoOn } from "../flomo/flomo";
 
 export type Tab = "look" | "general" | "keys" | "plugins" | "backup" | "about";
 
@@ -79,7 +81,7 @@ export function SettingsDialog({ settings, books, onChange, onClose, notify, ini
           {tab === "general" && <BookSearchPane s={settings} onChange={onChange} books={books} />}
           {tab === "general" && <DeletePane s={settings} onChange={onChange} />}
           {tab === "keys" && <KeysPane s={settings} onChange={onChange} />}
-          {tab === "plugins" && <ModulesPane s={settings} onChange={onChange} notify={notify} />}
+          {tab === "plugins" && <ModulesPane s={settings} onChange={onChange} notify={notify} books={books} />}
           {tab === "backup" && <BackupPane books={books} notify={notify} />}
           {tab === "about" && <AboutPane />}
         </div>
@@ -433,7 +435,7 @@ const unlocked = (): boolean => {
   }
 };
 
-function ModulesPane({ s, onChange, notify }: { s: Settings; onChange(p: Partial<Settings>): void; notify(msg: string): void }) {
+function ModulesPane({ s, onChange, notify, books }: { s: Settings; onChange(p: Partial<Settings>): void; notify(msg: string): void; books: BookRecord[] }) {
   useRegistry();
   const [open, setOpen] = useState(unlocked);
   const taps = useRef({ n: 0, at: 0 });
@@ -458,6 +460,7 @@ function ModulesPane({ s, onChange, notify }: { s: Settings; onChange(p: Partial
     onChange({ modules: [...on] });
   };
   const [dict, setDict] = useState(dictOn);
+  const [flomo, setFlomo] = useState(flomoOn);
   const sync = useSyncPlugin();
   return (
     <div className="panel settings-panel plugins-panel" onClick={tap}>
@@ -491,6 +494,15 @@ function ModulesPane({ s, onChange, notify }: { s: Settings; onChange(p: Partial
             setDict(v);
           }}
           settings={<DictPanel />}
+        />
+        <PluginRow
+          name={t("mod.flomo")}
+          on={flomo}
+          onToggle={(v) => {
+            setFlomoOn(v);
+            setFlomo(v);
+          }}
+          settings={<FlomoPanel books={books} />}
         />
         <PluginRow name={t("mod.sync")} on={sync.on} locked={sync.on && sync.connected ? t("mod.syncLocked") : undefined} onToggle={sync.set} settings={
             <div className="sy-plugin">
