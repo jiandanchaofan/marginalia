@@ -31,6 +31,8 @@ export function registerModule(m: Module) {
 
 export const knownModules = (): { id: string; name: string }[] => [...modules.values()].map((m) => ({ id: m.id, name: m.name }));
 export const isActive = (id: string) => active.has(id);
+/** Whether a running module recognises references in text (so the reference preview applies to it). */
+export const providesRefs = (id: string) => (active.get(id)?.recognizers.length ?? 0) > 0;
 /** Why a module that was asked to start did not (its error message), for the settings page. */
 export const failureOf = (id: string) => failed.get(id);
 /** The name to show for a module id, also for modules this build does not have. */

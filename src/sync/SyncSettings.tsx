@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { t } from "../i18n";
 import { isTauri } from "../platform";
-import { SyncPane } from "./SyncPane";
 import { setSyncOn, syncOn } from "./visible";
 
-/** The cloud sync plugin in Settings → Plugins: off by default; when on, its settings appear right below. */
-export function SyncSettings({ notify }: { notify(msg: string): void }) {
+/**
+ * The cloud sync plugin's switch for Settings → Plugins: off by default; while connected it cannot be switched off
+ * (disconnect first, in its settings — the SyncPane behind its gear).
+ */
+export function useSyncPlugin() {
   const [on, setOn] = useState(syncOn());
   const [connected, setConnected] = useState(false);
   useEffect(() => {
@@ -24,26 +25,9 @@ export function SyncSettings({ notify }: { notify(msg: string): void }) {
       off?.();
     };
   }, [on]);
-  return (
-    <div className="plugin-item">
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={on}
-          disabled={on && connected}
-          onChange={(e) => {
-            setSyncOn(e.target.checked);
-            setOn(e.target.checked);
-          }}
-        />{" "}
-        {t("mod.sync")}
-      </label>
-      {on && connected && <p className="settings-hint sy-locked">{t("mod.syncLocked")}</p>}
-      {on && (
-        <div className="sy-plugin">
-          <SyncPane notify={notify} bare />
-        </div>
-      )}
-    </div>
-  );
+  const set = (v: boolean) => {
+    setSyncOn(v);
+    setOn(v);
+  };
+  return { on, connected, set };
 }

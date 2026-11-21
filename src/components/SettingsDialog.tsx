@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { DatabaseBackup, FileText, FolderOpen, Info, Keyboard, Mail, Palette, Puzzle, SlidersHorizontal, Tag, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { DatabaseBackup, FileText, FolderOpen, Info, Keyboard, Mail, Palette, Puzzle, Settings2, SlidersHorizontal, Tag, X } from "lucide-react";
 import type { BookRecord } from "../core/types";
 import { BIBLE_MODULE_ID } from "../modules/bible/ids";
 import type { Settings } from "../settings";
@@ -14,15 +15,17 @@ import { readingStore } from "../reading/store";
 import { reviewStore } from "../review/store";
 import { syncIndex, useIndexState } from "../search/indexer";
 import { KeysPane } from "../palette/KeysPane";
-import { SyncSettings } from "../sync/SyncSettings";
-import { failureOf, knownModules, recognizers, useRegistry } from "../host/registry";
+import { useSyncPlugin } from "../sync/SyncSettings";
+import { SyncPane } from "../sync/SyncPane";
+import { dictOn, setDictOn } from "../dict/api";
+import { failureOf, knownModules, providesRefs, useRegistry } from "../host/registry";
 import { DEFAULT_WEEK_TAG } from "../settings";
 import { normalizeTag } from "../notes/tags";
 import { CARDS_CHANGED, resetCards, toggleCard } from "../cards/windows";
 import { CARD_KINDS, cardOn } from "../cards/state";
 import { autostartState, setAutostart } from "../cards/tray";
 import { AppLogo } from "./AppLogo";
-import { DictSettings } from "../dict/DictSettings";
+import { DictPanel } from "../dict/DictSettings";
 
 export type Tab = "look" | "general" | "keys" | "plugins" | "backup" | "about";
 
@@ -454,29 +457,98 @@ function ModulesPane({ s, onChange, notify }: { s: Settings; onChange(p: Partial
     else on.delete(id);
     onChange({ modules: [...on] });
   };
+  const [dict, setDict] = useState(dictOn);
+  const sync = useSyncPlugin();
   return (
     <div className="panel settings-panel plugins-panel" onClick={tap}>
       <div className="panel-title">{t("mod.title")}</div>
       <div className="settings-body">
         <p className="settings-hint">{t("mod.hint")}</p>
         {list.map((m) => (
-          <div className="plugin-item" key={m.id}>
-            <label className="check">
-              <input type="checkbox" checked={on.has(m.id)} onChange={(e) => flip(m.id, e.target.checked)} /> {m.name}
-            </label>
-            {on.has(m.id) && failureOf(m.id) && <p className="sy-err">{t("mod.failed", { err: failureOf(m.id)! })}</p>}
-          </div>
+          <PluginRow
+            key={m.id}
+            name={m.name}
+            on={on.has(m.id)}
+            onToggle={(v) => flip(m.id, v)}
+            error={on.has(m.id) && failureOf(m.id) ? t("mod.failed", { err: failureOf(m.id)! }) : undefined}
+            settings={
+              providesRefs(m.id) ? (
+                <div className="plugin-opt">
+                  <label className="check">
+                    <input type="checkbox" checked={s.refPreview !== false} onChange={(e) => onChange({ refPreview: e.target.checked })} /> {t("mod.refPreview")}
+                  </label>
+                  <p className="settings-hint">{t("mod.refPreviewHint")}</p>
+                </div>
+              ) : undefined
+            }
+          />
         ))}
-        <DictSettings />
-        <SyncSettings notify={notify} />
-        {recognizers().length > 0 && (
-          <div className="plugin-item">
-            <label className="check">
-              <input type="checkbox" checked={s.refPreview !== false} onChange={(e) => onChange({ refPreview: e.target.checked })} /> {t("mod.refPreview")}
-            </label>
-          </div>
+        <PluginRow
+          name={t("mod.dict")}
+          on={dict}
+          onToggle={(v) => {
+            setDictOn(v);
+            setDict(v);
+          }}
+          settings={<DictPanel />}
+        />
+        <PluginRow name={t("mod.sync")} on={sync.on} locked={sync.on && sync.connected ? t("mod.syncLocked") : undefined} onToggle={sync.set} settings={
+            <div className="sy-plugin">
+              <SyncPane notify={notify} bare />
+            </div>
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+/** One plugin: a line with its switch, and — while it is on and has any — a gear that opens its settings in a dialog. */
+function PluginRow({ name, on, onToggle, settings, error, locked }: { name: string; on: boolean; onToggle(v: boolean): void; settings?: React.ReactNode; error?: string; locked?: string }) {
+  const [open, setOpen] = useState(false);
+  const label = t("mod.settingsOf", { name });
+  useEffect(() => {
+    if (!on) setOpen(false); // switched off: its settings go away too
+  }, [on]);
+  useEffect(() => {
+    if (!open) return;
+    // Esc closes only this dialog, not the settings behind it
+    const k = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setOpen(false);
+    };
+    window.addEventListener("keydown", k, true);
+    return () => window.removeEventListener("keydown", k, true);
+  }, [open]);
+  return (
+    <div className="plugin-item">
+      <div className="plugin-row">
+        <label className="check">
+          <input type="checkbox" checked={on} disabled={!!locked} onChange={(e) => onToggle(e.target.checked)} /> {name}
+        </label>
+        {on && settings && (
+          <button className="icon-btn plugin-gear" title={label} aria-label={label} onClick={() => setOpen(true)}>
+            <Settings2 size={16} />
+          </button>
         )}
       </div>
+      {locked && <p className="settings-hint sy-locked">{locked}</p>}
+      {error && <p className="sy-err">{error}</p>}
+      {open &&
+        on &&
+        createPortal(
+          <div className="modal-backdrop plugin-dlg-back" onMouseDown={(e) => (e.stopPropagation(), setOpen(false))}>
+            <div className="modal plugin-dialog" role="dialog" aria-label={label} onMouseDown={(e) => e.stopPropagation()}>
+              <button className="icon-btn modal-close" onClick={() => setOpen(false)} title={t("common.close")}>
+                <X size={18} />
+              </button>
+              <h2>{label}</h2>
+              <div className="plugin-dialog-body">{settings}</div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

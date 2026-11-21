@@ -8952,12 +8952,22 @@ nav.settings-tabs button.on { background: var(--soft); color: var(--text); font-
   border-radius: 10px;
   background: var(--card);
 }
-.settings-pane.cards .plugin-item > .check { font-size: 13px; font-weight: 600; color: var(--text); }
-.settings-pane.cards .plugin-item > .dict-set,
-.settings-pane.cards .plugin-item > .sy-plugin,
-.settings-pane.cards .plugin-item > .sy-locked { margin-left: 0; align-self: stretch; padding-top: 8px; border-top: 1px dashed var(--line); }
-.settings-pane.cards .plugin-item .dict-set { margin: 0; }
-.settings-pane.cards .plugin-item > .sy-locked { border-top: 0; padding-top: 0; }
+.settings-pane.cards .plugin-item .plugin-row > .check { font-size: 13px; font-weight: 600; color: var(--text); }
+.settings-pane.cards .plugin-item > .sy-locked, .settings-pane.cards .plugin-item > .sy-err { margin: 0; }
+/* one line per plugin: the switch, and on the right a gear while it is on and has settings */
+.plugin-row { align-self: stretch; display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.plugin-row > .check { flex: 1; min-width: 0; }
+.plugin-gear { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: var(--muted); }
+.plugin-gear:hover { color: var(--text); background: color-mix(in srgb, var(--muted) 14%, transparent); }
+/* a plugin's settings: their own dialog over the settings */
+.plugin-dlg-back { z-index: 1200; }
+.modal.plugin-dialog { width: min(560px, calc(100vw - 32px)); max-height: min(80vh, 760px); display: flex; flex-direction: column; }
+.modal.plugin-dialog h2 { margin: 0 40px 14px 0; font-size: 17px; }
+.plugin-dialog-body { overflow-y: auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.plugin-dialog-body .dict-set, .plugin-dialog-body .sy-plugin { margin: 0; }
+.plugin-dialog-body .sy-plugin, .plugin-dialog-body .dict-set { align-self: stretch; }
+.plugin-opt .check { font-weight: 600; }
+.plugin-opt .settings-hint { margin: 4px 0 0 22px; }
 
 /* Settings -> Plugins: the list needs no outer frame, each plugin already has its own */
 .settings-pane.cards .panel.plugins-panel { border: 0; background: transparent; padding: 0; }

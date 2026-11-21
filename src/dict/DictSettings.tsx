@@ -1,16 +1,15 @@
 import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
 import { t } from "../i18n";
-import { dictApi, dictOn, dictTag, pickDictionary, setDictOn, setDictTag, type DictInfo } from "./api";
+import { dictApi, dictTag, pickDictionary, setDictTag, type DictInfo } from "./api";
 
-/** The dictionary plugin in Settings → Plugins: off by default; when on, load / order / switch off dictionaries. */
-export function DictSettings() {
-  const [on, setOn] = useState(dictOn());
+/** The dictionary plugin's settings (Settings → Plugins → its gear): load / order / switch off dictionaries, the note tag. */
+export function DictPanel() {
   const [list, setList] = useState<DictInfo[]>([]);
   const [err, setErr] = useState("");
   useEffect(() => {
-    if (on) dictApi.list().then(setList, (e) => setErr(String(e)));
-  }, [on]);
+    dictApi.list().then(setList, (e) => setErr(String(e)));
+  }, []);
   const act = async (f: () => Promise<DictInfo[]>) => {
     setErr("");
     try {
@@ -24,19 +23,6 @@ export function DictSettings() {
     if (p) await act(() => dictApi.add(p));
   };
   return (
-    <div className="plugin-item">
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={on}
-          onChange={(e) => {
-            setDictOn(e.target.checked);
-            setOn(e.target.checked);
-          }}
-        />{" "}
-        {t("mod.dict")}
-      </label>
-      {on && (
         <div className="dict-set">
           {list.length === 0 && <p className="settings-hint">{t("dict.set.empty")}</p>}
           {list.map((d, i) => (
@@ -64,8 +50,6 @@ export function DictSettings() {
           <TagField />
           {err && <p className="sy-err">{err}</p>}
         </div>
-      )}
-    </div>
   );
 }
 
